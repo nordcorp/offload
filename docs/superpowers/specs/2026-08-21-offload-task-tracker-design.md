@@ -129,6 +129,16 @@ offload/
 | taskId | UUID | FK → Task, composite PK |
 | tagId | UUID | FK → Tag, composite PK |
 
+### RefreshToken
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| token | string | hashed refresh token, indexed |
+| userId | UUID | FK → User |
+| expiresAt | timestamp | 7 days from creation |
+| createdAt | timestamp | |
+
 ### Indexes
 
 - `User.email` — unique index
