@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String         @id @default(uuid()) @db.Uuid
+  email        String         @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime       @default(now())
+  projects     Project[]
+  tasks        Task[]
+  tags         Tag[]
+  refreshTokens RefreshToken[]
+}
+
+model Project {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  color     String
+  sortOrder Int      @default(0)
+  userId    String   @db.Uuid
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks     Task[]
+
+  @@index([userId, sortOrder])
+}
+
+model Task {
+  id          String    @id @default(uuid()) @db.Uuid
+  title       String
+  description String?
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  priority    Int       @default(4)
+  urgent      Boolean   @default(false)
+  important   Boolean   @default(false)
+  projectId   String?   @db.Uuid
+  userId      String    @db.Uuid
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project     Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tags        TaskTag[]
+
+  @@index([userId, projectId, sortOrder])
+  @@index([userId, urgent, important])
+}
+
+model Tag {
+  id     String    @id @default(uuid()) @db.Uuid
+  name   String
+  color  String
+  userId String    @db.Uuid
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks  TaskTag[]
+}
+
+model TaskTag {
+  taskId String @db.Uuid
+  tagId  String @db.Uuid
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, tagId])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  token     String   @unique
+  userId    String   @db.Uuid
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+}
