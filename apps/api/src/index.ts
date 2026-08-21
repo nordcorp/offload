@@ -7,6 +7,7 @@ import errorHandler from './plugins/error-handler.js';
 import { AuthService } from './services/auth.service.js';
 import authRoutes from './routes/auth.js';
 import projectRoutes from './routes/projects.js';
+import taskRoutes from './routes/tasks.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -33,6 +34,7 @@ export async function buildApp() {
 
   await app.register(authRoutes);
   await app.register(projectRoutes);
+  await app.register(taskRoutes);
 
   return app;
 }
