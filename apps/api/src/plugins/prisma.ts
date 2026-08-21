@@ -132,9 +132,11 @@ export function createPostgresAdapter(connectionString: string) {
           ...createQueryable(reserved),
           options: { usePhantomQuery: false },
           commit: async () => {
+            await reserved.unsafe('COMMIT');
             reserved.release();
           },
           rollback: async () => {
+            await reserved.unsafe('ROLLBACK');
             reserved.release();
           },
         };

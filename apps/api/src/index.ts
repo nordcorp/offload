@@ -6,6 +6,7 @@ import prismaPlugin from './plugins/prisma.js';
 import errorHandler from './plugins/error-handler.js';
 import { AuthService } from './services/auth.service.js';
 import authRoutes from './routes/auth.js';
+import projectRoutes from './routes/projects.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -31,6 +32,7 @@ export async function buildApp() {
   app.decorate('authService', new AuthService(app.prisma, jwtSecret));
 
   await app.register(authRoutes);
+  await app.register(projectRoutes);
 
   return app;
 }
