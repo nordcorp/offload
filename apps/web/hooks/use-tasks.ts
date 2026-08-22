@@ -15,6 +15,7 @@ export interface UseTasksReturn {
   toggleTask: (id: string, completed?: boolean) => Promise<Task>;
   assignTag: (taskId: string, tag: Tag) => Promise<void>;
   unassignTag: (taskId: string, tagId: string) => Promise<void>;
+  reorderTasks: (tasks: Task[]) => Promise<void>;
 }
 
 export function useTasks(projectId?: string | null): UseTasksReturn {
@@ -244,6 +245,39 @@ export function useTasks(projectId?: string | null): UseTasksReturn {
     []
   );
 
+  const reorderTasks = useCallback(
+    async (newTasks: Task[]): Promise<void> => {
+      setError(null);
+      const previousTasks = tasksRef.current;
+
+      const items = newTasks.map((t, index) => ({
+        id: t.id,
+        sortOrder: index,
+      }));
+
+      // Optimistically update local tasks
+      const taskMap = new Map(newTasks.map((t, idx) => [t.id, { ...t, sortOrder: idx }]));
+      setTasks((prev) => {
+        const remaining = prev.filter((t) => !taskMap.has(t.id));
+        const updatedNewTasks = newTasks.map((t, idx) => ({ ...t, sortOrder: idx }));
+        return [...updatedNewTasks, ...remaining];
+      });
+
+      try {
+        await apiClient<void>('/api/tasks/reorder', {
+          method: 'PATCH',
+          body: JSON.stringify({ items }),
+        });
+      } catch (err: unknown) {
+        setTasks(previousTasks);
+        const message = err instanceof Error ? err.message : 'Failed to reorder tasks';
+        setError(message);
+        throw err;
+      }
+    },
+    []
+  );
+
   return {
     tasks,
     isLoading,
@@ -255,5 +289,6 @@ export function useTasks(projectId?: string | null): UseTasksReturn {
     toggleTask,
     assignTag,
     unassignTag,
+    reorderTasks,
   };
 }

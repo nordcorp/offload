@@ -17,6 +17,7 @@ export default function InboxPage() {
     deleteTask,
     assignTag,
     unassignTag,
+    reorderTasks,
     isLoading,
   } = useTasks(null);
   const { tags } = useTags();
@@ -68,6 +69,7 @@ export default function InboxPage() {
         onToggleTask={toggleTask}
         onDeleteTask={handleDeleteTask}
         onSelectTask={(task) => setSelectedTaskId(task.id)}
+        onReorderTasks={reorderTasks}
         emptyTitle="Your inbox is clear"
         emptyDescription="Tasks without an assigned project will appear here. Type below to add one."
         inputPlaceholder="Add a task to inbox... Press Enter"

@@ -12,7 +12,26 @@ import {
   Folder,
   Loader2,
   X,
+  GripVertical,
 } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import type { Project } from '@offload/shared';
 import { cn } from '@/lib/utils';
 import { useProjects } from '@/hooks/use-projects';
 import { Button } from '@/components/ui/button';
@@ -33,9 +52,101 @@ const PRESET_COLORS = [
   '#ec4899', // Pink
 ];
 
+interface SortableProjectItemProps {
+  project: Project;
+  isActive: boolean;
+  isDeleting: boolean;
+  onNavigate?: () => void;
+  onDelete: (e: React.MouseEvent, id: string) => void;
+}
+
+function SortableProjectItem({
+  project,
+  isActive,
+  isDeleting,
+  onNavigate,
+  onDelete,
+}: SortableProjectItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: project.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+  };
+
+  const taskCount = project._count?.tasks ?? 0;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={cn('relative group/item', isDragging && 'opacity-50 z-50')}
+    >
+      <Link
+        href={`/projects/${project.id}`}
+        onClick={onNavigate}
+        className={cn(
+          'group flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors',
+          isActive
+            ? 'bg-blue-50 text-blue-700 font-medium'
+            : 'text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900',
+          isDragging && 'bg-zinc-100 shadow-sm'
+        )}
+      >
+        <div className="flex items-center gap-2.5 min-w-0 pr-1">
+          <GripVertical className="w-3.5 h-3.5 text-zinc-300 group-hover/item:text-zinc-400 opacity-0 group-hover/item:opacity-100 transition-opacity shrink-0 -ml-1 cursor-grab active:cursor-grabbing" />
+          <span
+            className="w-2.5 h-2.5 rounded-full shrink-0"
+            style={{ backgroundColor: project.color }}
+          />
+          <span className="truncate">{project.name}</span>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          {taskCount > 0 && (
+            <span
+              className={cn(
+                'text-xs px-1.5 py-0.5 rounded-full',
+                isActive
+                  ? 'bg-blue-200/70 text-blue-800'
+                  : 'bg-zinc-200/70 text-zinc-600 group-hover:bg-zinc-200'
+              )}
+            >
+              {taskCount}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={(e) => onDelete(e, project.id)}
+            disabled={isDeleting}
+            aria-label={`Delete ${project.name}`}
+            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-zinc-200 text-zinc-400 hover:text-red-600 transition-opacity cursor-pointer"
+          >
+            {isDeleting ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="w-3.5 h-3.5" />
+            )}
+          </button>
+        </div>
+      </Link>
+    </div>
+  );
+}
+
 export function Sidebar({ onNavigate, className }: SidebarProps) {
   const pathname = usePathname();
-  const { projects, isLoading, createProject, deleteProject } = useProjects();
+  const { projects, isLoading, createProject, deleteProject, reorderProjects } = useProjects();
 
   const [isCreating, setIsCreating] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
@@ -43,6 +154,32 @@ export function Sidebar({ onNavigate, className }: SidebarProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const oldIndex = projects.findIndex((p) => p.id === active.id);
+    const newIndex = projects.findIndex((p) => p.id === over.id);
+
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const reordered = arrayMove(projects, oldIndex, newIndex);
+      reorderProjects(reordered);
+    }
+  };
 
   const mainNavItems = [
     { href: '/inbox', label: 'Inbox', icon: Inbox },
@@ -211,7 +348,7 @@ export function Sidebar({ onNavigate, className }: SidebarProps) {
           )}
 
           {/* Projects List */}
-          <div className="space-y-0.5">
+          <div>
             {isLoading ? (
               <div className="flex items-center justify-center py-4 text-zinc-400">
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -223,61 +360,29 @@ export function Sidebar({ onNavigate, className }: SidebarProps) {
                 <span>No projects yet</span>
               </div>
             ) : (
-              projects.map((project) => {
-                const isActive = pathname === `/projects/${project.id}`;
-                const taskCount = project._count?.tasks ?? 0;
-                const isDeleting = deletingId === project.id;
-
-                return (
-                  <Link
-                    key={project.id}
-                    href={`/projects/${project.id}`}
-                    onClick={onNavigate}
-                    className={cn(
-                      'group flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors',
-                      isActive
-                        ? 'bg-blue-50 text-blue-700 font-medium'
-                        : 'text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900'
-                    )}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0 pr-1">
-                      <span
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: project.color }}
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={projects.map((p) => p.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-0.5">
+                    {projects.map((project) => (
+                      <SortableProjectItem
+                        key={project.id}
+                        project={project}
+                        isActive={pathname === `/projects/${project.id}`}
+                        isDeleting={deletingId === project.id}
+                        onNavigate={onNavigate}
+                        onDelete={handleDeleteProject}
                       />
-                      <span className="truncate">{project.name}</span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {taskCount > 0 && (
-                        <span
-                          className={cn(
-                            'text-xs px-1.5 py-0.5 rounded-full',
-                            isActive
-                              ? 'bg-blue-200/70 text-blue-800'
-                              : 'bg-zinc-200/70 text-zinc-600 group-hover:bg-zinc-200'
-                          )}
-                        >
-                          {taskCount}
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={(e) => handleDeleteProject(e, project.id)}
-                        disabled={isDeleting}
-                        aria-label={`Delete ${project.name}`}
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-zinc-200 text-zinc-400 hover:text-red-600 transition-opacity"
-                      >
-                        {isDeleting ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-3.5 h-3.5" />
-                        )}
-                      </button>
-                    </div>
-                  </Link>
-                );
-              })
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             )}
           </div>
         </div>

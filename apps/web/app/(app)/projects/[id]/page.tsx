@@ -28,6 +28,7 @@ export default function ProjectPage() {
     deleteTask,
     assignTag,
     unassignTag,
+    reorderTasks,
     isLoading: isTasksLoading,
   } = useTasks(projectId || null);
   const { tags } = useTags();
@@ -95,6 +96,7 @@ export default function ProjectPage() {
         onToggleTask={toggleTask}
         onDeleteTask={handleDeleteTask}
         onSelectTask={(task) => setSelectedTaskId(task.id)}
+        onReorderTasks={reorderTasks}
         emptyTitle="No tasks in this project"
         emptyDescription={`Tasks assigned to ${project?.name || 'this project'} will appear here. Add one below.`}
         inputPlaceholder={`Add a task to ${project?.name || 'project'}... Press Enter`}
