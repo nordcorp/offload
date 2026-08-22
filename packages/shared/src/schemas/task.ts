@@ -19,5 +19,7 @@ export const updateTaskSchema = z.object({
   projectId: z.string().uuid().nullable().optional(),
 });
 
-export type CreateTaskInput = z.infer<typeof createTaskSchema>;
+export type CreateTaskInput = z.input<typeof createTaskSchema>;
+export type CreateTaskOutput = z.output<typeof createTaskSchema>;
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
+
