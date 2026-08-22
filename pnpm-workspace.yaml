@@ -6,6 +6,7 @@ allowBuilds:
   '@prisma/engines': true
   esbuild: true
   prisma: true
+  sharp: true
 
 onlyBuiltDependencies:
   - "@prisma/client"
@@ -13,3 +14,4 @@ onlyBuiltDependencies:
   - "esbuild"
   - "prisma"
   - "bcryptjs"
+  - "sharp"

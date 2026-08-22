@@ -4,7 +4,7 @@ import {
   createProjectSchema, updateProjectSchema,
   createTaskSchema, updateTaskSchema,
   createTagSchema, reorderSchema,
-} from '../schemas/index.js';
+} from '../schemas/index';
 
 describe('auth schemas', () => {
   it('validates register input', () => {
