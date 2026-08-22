@@ -1,11 +1,14 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams } from 'next/navigation';
+import { Folder, Loader2 } from 'lucide-react';
+import type { Tag, UpdateTaskInput } from '@offload/shared';
 import { useProjects } from '@/hooks/use-projects';
 import { useTasks } from '@/hooks/use-tasks';
+import { useTags } from '@/hooks/use-tags';
 import { TaskList } from '@/components/tasks/task-list';
-import { Folder, Loader2 } from 'lucide-react';
+import { TaskDetail } from '@/components/tasks/task-detail';
 
 export default function ProjectPage() {
   const params = useParams();
@@ -17,11 +20,38 @@ export default function ProjectPage() {
         : '';
 
   const { projects, isLoading: isProjectsLoading } = useProjects();
-  const { tasks, addTask, toggleTask, deleteTask, isLoading: isTasksLoading } =
-    useTasks(projectId || null);
+  const {
+    tasks,
+    addTask,
+    updateTask,
+    toggleTask,
+    deleteTask,
+    assignTag,
+    unassignTag,
+    isLoading: isTasksLoading,
+  } = useTasks(projectId || null);
+  const { tags } = useTags();
+
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const project = projects.find((p) => p.id === projectId);
+  const selectedTask = tasks.find((t) => t.id === selectedTaskId) || null;
   const activeCount = tasks.filter((t) => !t.completed).length;
+
+  const handleDeleteTask = async (id: string) => {
+    if (selectedTaskId === id) {
+      setSelectedTaskId(null);
+    }
+    await deleteTask(id);
+  };
+
+  const handleToggleTag = async (taskId: string, tag: Tag, isAssigned: boolean) => {
+    if (isAssigned) {
+      await unassignTag(taskId, tag.id);
+    } else {
+      await assignTag(taskId, tag);
+    }
+  };
 
   if (isProjectsLoading && !project) {
     return (
@@ -63,10 +93,21 @@ export default function ProjectPage() {
         isLoading={isTasksLoading}
         onAddTask={(title) => addTask({ title, projectId })}
         onToggleTask={toggleTask}
-        onDeleteTask={deleteTask}
+        onDeleteTask={handleDeleteTask}
+        onSelectTask={(task) => setSelectedTaskId(task.id)}
         emptyTitle="No tasks in this project"
         emptyDescription={`Tasks assigned to ${project?.name || 'this project'} will appear here. Add one below.`}
         inputPlaceholder={`Add a task to ${project?.name || 'project'}... Press Enter`}
+      />
+
+      <TaskDetail
+        task={selectedTask}
+        isOpen={!!selectedTask}
+        onClose={() => setSelectedTaskId(null)}
+        onUpdate={updateTask}
+        onDelete={handleDeleteTask}
+        availableTags={tags}
+        onToggleTag={handleToggleTag}
       />
     </div>
   );

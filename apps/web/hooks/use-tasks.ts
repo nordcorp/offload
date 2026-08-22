@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { Task, CreateTaskInput, UpdateTaskInput } from '@offload/shared';
+import type { Task, CreateTaskInput, UpdateTaskInput, Tag } from '@offload/shared';
 import { apiClient } from '@/lib/api-client';
 
 export interface UseTasksReturn {
@@ -13,6 +13,8 @@ export interface UseTasksReturn {
   updateTask: (id: string, input: UpdateTaskInput) => Promise<Task>;
   deleteTask: (id: string) => Promise<void>;
   toggleTask: (id: string, completed?: boolean) => Promise<Task>;
+  assignTag: (taskId: string, tag: Tag) => Promise<void>;
+  unassignTag: (taskId: string, tagId: string) => Promise<void>;
 }
 
 export function useTasks(projectId?: string | null): UseTasksReturn {
@@ -188,6 +190,60 @@ export function useTasks(projectId?: string | null): UseTasksReturn {
     [updateTask]
   );
 
+  const assignTag = useCallback(
+    async (taskId: string, tag: Tag): Promise<void> => {
+      setError(null);
+      const previousTasks = tasksRef.current;
+      setTasks((prev) =>
+        prev.map((t) => {
+          if (t.id !== taskId) return t;
+          const currentTags = t.tags || [];
+          if (currentTags.some((x) => x.id === tag.id)) return t;
+          return { ...t, tags: [...currentTags, tag] };
+        })
+      );
+      try {
+        await apiClient<void>(`/api/tasks/${taskId}/tags`, {
+          method: 'POST',
+          body: JSON.stringify({ tagId: tag.id }),
+        });
+      } catch (err: unknown) {
+        setTasks(previousTasks);
+        const message = err instanceof Error ? err.message : 'Failed to assign tag';
+        setError(message);
+        throw err;
+      }
+    },
+    []
+  );
+
+  const unassignTag = useCallback(
+    async (taskId: string, tagId: string): Promise<void> => {
+      setError(null);
+      const previousTasks = tasksRef.current;
+      setTasks((prev) =>
+        prev.map((t) => {
+          if (t.id !== taskId) return t;
+          return {
+            ...t,
+            tags: (t.tags || []).filter((x) => x.id !== tagId),
+          };
+        })
+      );
+      try {
+        await apiClient<void>(`/api/tasks/${taskId}/tags/${tagId}`, {
+          method: 'DELETE',
+        });
+      } catch (err: unknown) {
+        setTasks(previousTasks);
+        const message = err instanceof Error ? err.message : 'Failed to unassign tag';
+        setError(message);
+        throw err;
+      }
+    },
+    []
+  );
+
   return {
     tasks,
     isLoading,
@@ -197,5 +253,7 @@ export function useTasks(projectId?: string | null): UseTasksReturn {
     updateTask,
     deleteTask,
     toggleTask,
+    assignTag,
+    unassignTag,
   };
 }

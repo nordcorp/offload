@@ -1,14 +1,44 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Inbox } from 'lucide-react';
+import type { Tag, UpdateTaskInput } from '@offload/shared';
 import { useTasks } from '@/hooks/use-tasks';
+import { useTags } from '@/hooks/use-tags';
 import { TaskList } from '@/components/tasks/task-list';
+import { TaskDetail } from '@/components/tasks/task-detail';
 
 export default function InboxPage() {
-  const { tasks, addTask, toggleTask, deleteTask, isLoading } = useTasks(null);
+  const {
+    tasks,
+    addTask,
+    updateTask,
+    toggleTask,
+    deleteTask,
+    assignTag,
+    unassignTag,
+    isLoading,
+  } = useTasks(null);
+  const { tags } = useTags();
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
+  const selectedTask = tasks.find((t) => t.id === selectedTaskId) || null;
   const activeCount = tasks.filter((t) => !t.completed).length;
+
+  const handleDeleteTask = async (id: string) => {
+    if (selectedTaskId === id) {
+      setSelectedTaskId(null);
+    }
+    await deleteTask(id);
+  };
+
+  const handleToggleTag = async (taskId: string, tag: Tag, isAssigned: boolean) => {
+    if (isAssigned) {
+      await unassignTag(taskId, tag.id);
+    } else {
+      await assignTag(taskId, tag);
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
@@ -36,10 +66,21 @@ export default function InboxPage() {
         isLoading={isLoading}
         onAddTask={(title) => addTask({ title })}
         onToggleTask={toggleTask}
-        onDeleteTask={deleteTask}
+        onDeleteTask={handleDeleteTask}
+        onSelectTask={(task) => setSelectedTaskId(task.id)}
         emptyTitle="Your inbox is clear"
         emptyDescription="Tasks without an assigned project will appear here. Type below to add one."
         inputPlaceholder="Add a task to inbox... Press Enter"
+      />
+
+      <TaskDetail
+        task={selectedTask}
+        isOpen={!!selectedTask}
+        onClose={() => setSelectedTaskId(null)}
+        onUpdate={updateTask}
+        onDelete={handleDeleteTask}
+        availableTags={tags}
+        onToggleTag={handleToggleTag}
       />
     </div>
   );
