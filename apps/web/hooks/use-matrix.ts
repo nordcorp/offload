@@ -1,0 +1,366 @@
+'use client';
+
+import { useState, useEffect, useCallback, useRef } from 'react';
+import type {
+  MatrixResponse,
+  Task,
+  CreateTaskInput,
+  UpdateTaskInput,
+  QuadrantKey,
+} from '@offload/shared';
+import { apiClient } from '@/lib/api-client';
+
+export const QUADRANT_FLAGS: Record<
+  QuadrantKey,
+  { urgent: boolean; important: boolean }
+> = {
+  urgent_important: { urgent: true, important: true },
+  not_urgent_important: { urgent: false, important: true },
+  urgent_not_important: { urgent: true, important: false },
+  not_urgent_not_important: { urgent: false, important: false },
+};
+
+export function getQuadrantKey(urgent: boolean, important: boolean): QuadrantKey {
+  if (urgent && important) return 'urgent_important';
+  if (!urgent && important) return 'not_urgent_important';
+  if (urgent && !important) return 'urgent_not_important';
+  return 'not_urgent_not_important';
+}
+
+const EMPTY_MATRIX: MatrixResponse = {
+  urgent_important: [],
+  not_urgent_important: [],
+  urgent_not_important: [],
+  not_urgent_not_important: [],
+};
+
+export interface UseMatrixReturn {
+  matrix: MatrixResponse;
+  isLoading: boolean;
+  error: string | null;
+  refetch: () => Promise<void>;
+  moveTaskQuadrant: (taskId: string, targetQuadrant: QuadrantKey) => Promise<void>;
+  addTask: (input: CreateTaskInput | string, quadrant: QuadrantKey) => Promise<Task>;
+  updateTask: (id: string, input: UpdateTaskInput) => Promise<Task>;
+  deleteTask: (id: string) => Promise<void>;
+  toggleTask: (id: string, completed?: boolean) => Promise<Task>;
+}
+
+export function useMatrix(projectId?: string | null): UseMatrixReturn {
+  const [matrix, setMatrix] = useState<MatrixResponse>(EMPTY_MATRIX);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const matrixRef = useRef<MatrixResponse>(matrix);
+  useEffect(() => {
+    matrixRef.current = matrix;
+  }, [matrix]);
+
+  const endpoint = projectId
+    ? `/api/tasks/matrix?projectId=${encodeURIComponent(projectId)}`
+    : '/api/tasks/matrix';
+
+  const fetchMatrix = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await apiClient<MatrixResponse>(endpoint);
+      setMatrix({
+        urgent_important: data?.urgent_important || [],
+        not_urgent_important: data?.not_urgent_important || [],
+        urgent_not_important: data?.urgent_not_important || [],
+        not_urgent_not_important: data?.not_urgent_not_important || [],
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch matrix tasks';
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [endpoint]);
+
+  useEffect(() => {
+    fetchMatrix();
+  }, [fetchMatrix]);
+
+  const moveTaskQuadrant = useCallback(
+    async (taskId: string, targetQuadrant: QuadrantKey): Promise<void> => {
+      setError(null);
+      const current = matrixRef.current;
+
+      // Find source quadrant
+      let sourceQuadrant: QuadrantKey | null = null;
+      let targetTask: Task | null = null;
+
+      for (const key of Object.keys(current) as QuadrantKey[]) {
+        const found = current[key].find((t) => t.id === taskId);
+        if (found) {
+          sourceQuadrant = key;
+          targetTask = found;
+          break;
+        }
+      }
+
+      if (!sourceQuadrant || !targetTask || sourceQuadrant === targetQuadrant) {
+        return;
+      }
+
+      const flags = QUADRANT_FLAGS[targetQuadrant];
+      const updatedTask: Task = {
+        ...targetTask,
+        urgent: flags.urgent,
+        important: flags.important,
+      };
+
+      const previousMatrix = current;
+
+      // Optimistic update
+      setMatrix((prev) => ({
+        ...prev,
+        [sourceQuadrant!]: prev[sourceQuadrant!].filter((t) => t.id !== taskId),
+        [targetQuadrant]: [...prev[targetQuadrant], updatedTask],
+      }));
+
+      try {
+        const result = await apiClient<Task>(`/api/tasks/${taskId}`, {
+          method: 'PATCH',
+          body: JSON.stringify(flags),
+        });
+
+        // Ensure state aligns with returned task
+        setMatrix((prev) => ({
+          ...prev,
+          [targetQuadrant]: prev[targetQuadrant].map((t) => (t.id === taskId ? result : t)),
+        }));
+      } catch (err: unknown) {
+        setMatrix(previousMatrix);
+        const message = err instanceof Error ? err.message : 'Failed to move task';
+        setError(message);
+        throw err;
+      }
+    },
+    []
+  );
+
+  const addTask = useCallback(
+    async (input: CreateTaskInput | string, quadrant: QuadrantKey): Promise<Task> => {
+      setError(null);
+      const taskInput: CreateTaskInput =
+        typeof input === 'string' ? { title: input } : input;
+
+      const flags = QUADRANT_FLAGS[quadrant];
+      const payload: CreateTaskInput = {
+        ...taskInput,
+        urgent: flags.urgent,
+        important: flags.important,
+        projectId:
+          taskInput.projectId !== undefined
+            ? taskInput.projectId
+            : projectId
+              ? projectId
+              : undefined,
+      };
+
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      const optimisticTask: Task = {
+        id: tempId,
+        title: payload.title,
+        description: payload.description ?? null,
+        completed: false,
+        completedAt: null,
+        priority: (payload.priority as 1 | 2 | 3 | 4) ?? 4,
+        urgent: flags.urgent,
+        important: flags.important,
+        projectId: payload.projectId ?? null,
+        userId: '',
+        sortOrder: matrixRef.current[quadrant]?.length ?? 0,
+        createdAt: new Date().toISOString(),
+        tags: [],
+      };
+
+      const previousMatrix = matrixRef.current;
+
+      // Optimistically append to target quadrant
+      setMatrix((prev) => ({
+        ...prev,
+        [quadrant]: [...prev[quadrant], optimisticTask],
+      }));
+
+      try {
+        const createdTask = await apiClient<Task>('/api/tasks', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+
+        setMatrix((prev) => ({
+          ...prev,
+          [quadrant]: prev[quadrant].map((t) => (t.id === tempId ? createdTask : t)),
+        }));
+        return createdTask;
+      } catch (err: unknown) {
+        setMatrix(previousMatrix);
+        const message = err instanceof Error ? err.message : 'Failed to create task';
+        setError(message);
+        throw err;
+      }
+    },
+    [projectId]
+  );
+
+  const updateTask = useCallback(
+    async (id: string, input: UpdateTaskInput): Promise<Task> => {
+      setError(null);
+      const current = matrixRef.current;
+
+      let sourceQuadrant: QuadrantKey | null = null;
+      let existingTask: Task | null = null;
+
+      for (const key of Object.keys(current) as QuadrantKey[]) {
+        const found = current[key].find((t) => t.id === id);
+        if (found) {
+          sourceQuadrant = key;
+          existingTask = found;
+          break;
+        }
+      }
+
+      if (!sourceQuadrant || !existingTask) {
+        // Task not found in current matrix, call API directly
+        const updated = await apiClient<Task>(`/api/tasks/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(input),
+        });
+        return updated;
+      }
+
+      const previousMatrix = current;
+
+      const newUrgent = input.urgent !== undefined ? input.urgent : existingTask.urgent;
+      const newImportant =
+        input.important !== undefined ? input.important : existingTask.important;
+      const targetQuadrant = getQuadrantKey(newUrgent, newImportant);
+
+      const isCompleted = input.completed !== undefined ? input.completed : existingTask.completed;
+
+      const updatedOptimistic: Task = {
+        ...existingTask,
+        ...input,
+        urgent: newUrgent,
+        important: newImportant,
+        completed: isCompleted,
+        completedAt:
+          input.completed === true
+            ? existingTask.completedAt ?? new Date().toISOString()
+            : input.completed === false
+              ? null
+              : existingTask.completedAt,
+        priority:
+          input.priority !== undefined
+            ? (input.priority as 1 | 2 | 3 | 4)
+            : existingTask.priority,
+      };
+
+      setMatrix((prev) => {
+        // If completed, remove from matrix views (matrix endpoint only shows uncompleted tasks)
+        if (isCompleted) {
+          return {
+            ...prev,
+            [sourceQuadrant!]: prev[sourceQuadrant!].filter((t) => t.id !== id),
+          };
+        }
+
+        if (sourceQuadrant !== targetQuadrant) {
+          return {
+            ...prev,
+            [sourceQuadrant!]: prev[sourceQuadrant!].filter((t) => t.id !== id),
+            [targetQuadrant]: [...prev[targetQuadrant], updatedOptimistic],
+          };
+        }
+
+        return {
+          ...prev,
+          [sourceQuadrant!]: prev[sourceQuadrant!].map((t) =>
+            t.id === id ? updatedOptimistic : t
+          ),
+        };
+      });
+
+      try {
+        const savedTask = await apiClient<Task>(`/api/tasks/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(input),
+        });
+
+        if (!savedTask.completed) {
+          const finalQuadrant = getQuadrantKey(savedTask.urgent, savedTask.important);
+          setMatrix((prev) => ({
+            ...prev,
+            [finalQuadrant]: prev[finalQuadrant].map((t) => (t.id === id ? savedTask : t)),
+          }));
+        }
+        return savedTask;
+      } catch (err: unknown) {
+        setMatrix(previousMatrix);
+        const message = err instanceof Error ? err.message : 'Failed to update task';
+        setError(message);
+        throw err;
+      }
+    },
+    []
+  );
+
+  const deleteTask = useCallback(
+    async (id: string): Promise<void> => {
+      setError(null);
+      const previousMatrix = matrixRef.current;
+
+      setMatrix((prev) => ({
+        urgent_important: prev.urgent_important.filter((t) => t.id !== id),
+        not_urgent_important: prev.not_urgent_important.filter((t) => t.id !== id),
+        urgent_not_important: prev.urgent_not_important.filter((t) => t.id !== id),
+        not_urgent_not_important: prev.not_urgent_not_important.filter((t) => t.id !== id),
+      }));
+
+      try {
+        await apiClient<void>(`/api/tasks/${id}`, {
+          method: 'DELETE',
+        });
+      } catch (err: unknown) {
+        setMatrix(previousMatrix);
+        const message = err instanceof Error ? err.message : 'Failed to delete task';
+        setError(message);
+        throw err;
+      }
+    },
+    []
+  );
+
+  const toggleTask = useCallback(
+    async (id: string, forceCompleted?: boolean): Promise<Task> => {
+      let currentTask: Task | null = null;
+      for (const key of Object.keys(matrixRef.current) as QuadrantKey[]) {
+        const found = matrixRef.current[key].find((t) => t.id === id);
+        if (found) {
+          currentTask = found;
+          break;
+        }
+      }
+      const nextCompleted =
+        forceCompleted !== undefined ? forceCompleted : !currentTask?.completed;
+      return updateTask(id, { completed: nextCompleted });
+    },
+    [updateTask]
+  );
+
+  return {
+    matrix,
+    isLoading,
+    error,
+    refetch: fetchMatrix,
+    moveTaskQuadrant,
+    addTask,
+    updateTask,
+    deleteTask,
+    toggleTask,
+  };
+}
