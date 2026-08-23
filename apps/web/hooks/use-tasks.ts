@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Task, CreateTaskInput, UpdateTaskInput, Tag } from '@offload/shared';
 import { apiClient } from '@/lib/api-client';
+import { addTagToTaskTags, removeTagFromTaskTags } from '@/lib/utils';
 
 export interface UseTasksReturn {
   tasks: Task[];
@@ -196,12 +197,7 @@ export function useTasks(projectId?: string | null): UseTasksReturn {
       setError(null);
       const previousTasks = tasksRef.current;
       setTasks((prev) =>
-        prev.map((t) => {
-          if (t.id !== taskId) return t;
-          const currentTags = t.tags || [];
-          if (currentTags.some((x) => x.id === tag.id)) return t;
-          return { ...t, tags: [...currentTags, tag] };
-        })
+        prev.map((t) => (t.id === taskId ? { ...t, tags: addTagToTaskTags(t.tags, tag) } : t))
       );
       try {
         await apiClient<void>(`/api/tasks/${taskId}/tags`, {
@@ -223,13 +219,7 @@ export function useTasks(projectId?: string | null): UseTasksReturn {
       setError(null);
       const previousTasks = tasksRef.current;
       setTasks((prev) =>
-        prev.map((t) => {
-          if (t.id !== taskId) return t;
-          return {
-            ...t,
-            tags: (t.tags || []).filter((x) => x.id !== tagId),
-          };
-        })
+        prev.map((t) => (t.id === taskId ? { ...t, tags: removeTagFromTaskTags(t.tags, tagId) } : t))
       );
       try {
         await apiClient<void>(`/api/tasks/${taskId}/tags/${tagId}`, {

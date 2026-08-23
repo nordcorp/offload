@@ -45,6 +45,25 @@ describe('Tags CRUD', () => {
     const deleted = await app.inject({ method: 'DELETE', url: `/api/tags/${tagId}`, headers: auth() });
     expect(deleted.statusCode).toBe(204);
   });
+
+  it('returns 400 VALIDATION_ERROR on invalid tag UUID for PATCH and DELETE', async () => {
+    const patchRes = await app.inject({
+      method: 'PATCH',
+      url: '/api/tags/not-a-valid-uuid',
+      headers: auth(),
+      payload: { name: 'personal' },
+    });
+    expect(patchRes.statusCode).toBe(400);
+    expect(patchRes.json().code).toBe('VALIDATION_ERROR');
+
+    const deleteRes = await app.inject({
+      method: 'DELETE',
+      url: '/api/tags/not-a-valid-uuid',
+      headers: auth(),
+    });
+    expect(deleteRes.statusCode).toBe(400);
+    expect(deleteRes.json().code).toBe('VALIDATION_ERROR');
+  });
 });
 
 describe('Task-Tag linking', () => {
@@ -74,5 +93,24 @@ describe('Task-Tag linking', () => {
       method: 'DELETE', url: `/api/tasks/${taskId}/tags/${tagId}`, headers: auth(),
     });
     expect(unassign.statusCode).toBe(204);
+  });
+
+  it('returns 400 VALIDATION_ERROR on invalid taskId or tagId in task-tag routes', async () => {
+    const assignRes = await app.inject({
+      method: 'POST',
+      url: '/api/tasks/not-a-valid-uuid/tags',
+      headers: auth(),
+      payload: { tagId: '00000000-0000-0000-0000-000000000000' },
+    });
+    expect(assignRes.statusCode).toBe(400);
+    expect(assignRes.json().code).toBe('VALIDATION_ERROR');
+
+    const unassignRes = await app.inject({
+      method: 'DELETE',
+      url: '/api/tasks/not-a-valid-uuid/tags/not-a-valid-uuid',
+      headers: auth(),
+    });
+    expect(unassignRes.statusCode).toBe(400);
+    expect(unassignRes.json().code).toBe('VALIDATION_ERROR');
   });
 });

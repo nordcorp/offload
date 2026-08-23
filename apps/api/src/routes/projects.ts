@@ -1,7 +1,10 @@
 import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { createProjectSchema, updateProjectSchema, reorderSchema } from '@offload/shared';
 import { authenticate } from '../middleware/authenticate.js';
 import { ProjectService } from '../services/project.service.js';
+
+const idParamSchema = z.object({ id: z.string().uuid() });
 
 export default async function projectRoutes(fastify: FastifyInstance) {
   const service = new ProjectService(fastify.prisma);
@@ -21,13 +24,13 @@ export default async function projectRoutes(fastify: FastifyInstance) {
   });
 
   fastify.patch('/api/projects/:id', async (request, reply) => {
-    const { id } = request.params as { id: string };
+    const { id } = idParamSchema.parse(request.params);
     const input = updateProjectSchema.parse(request.body);
     return reply.status(200).send(await service.update(request.userId, id, input));
   });
 
   fastify.delete('/api/projects/:id', async (request, reply) => {
-    const { id } = request.params as { id: string };
+    const { id } = idParamSchema.parse(request.params);
     await service.delete(request.userId, id);
     return reply.status(204).send();
   });

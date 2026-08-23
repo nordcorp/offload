@@ -101,6 +101,12 @@ describe('GET /api/projects/:id/tasks', () => {
     const res = await app.inject({ method: 'GET', url: `/api/projects/${projectId}/tasks`, headers: auth() });
     expect(res.json()).toHaveLength(2);
   });
+
+  it('returns 400 VALIDATION_ERROR on invalid project UUID', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/projects/not-a-valid-uuid/tasks', headers: auth() });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('VALIDATION_ERROR');
+  });
 });
 
 describe('PATCH /api/tasks/:id', () => {
@@ -119,6 +125,17 @@ describe('PATCH /api/tasks/:id', () => {
     });
     expect(res.json().completed).toBe(true);
     expect(res.json().completedAt).toBeDefined();
+  });
+
+  it('returns 400 VALIDATION_ERROR on invalid task UUID', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/api/tasks/not-a-valid-uuid',
+      headers: auth(),
+      payload: { completed: true },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('VALIDATION_ERROR');
   });
 });
 
@@ -155,6 +172,12 @@ describe('GET /api/tasks/matrix', () => {
     expect(body.urgent_not_important).toHaveLength(1);
     expect(body.not_urgent_not_important).toHaveLength(1);
   });
+
+  it('returns 400 VALIDATION_ERROR on invalid projectId query param', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/tasks/matrix?projectId=invalid-uuid', headers: auth() });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('VALIDATION_ERROR');
+  });
 });
 
 describe('DELETE /api/tasks/:id', () => {
@@ -171,6 +194,16 @@ describe('DELETE /api/tasks/:id', () => {
       headers: auth(),
     });
     expect(res.statusCode).toBe(204);
+  });
+
+  it('returns 400 VALIDATION_ERROR on invalid task UUID', async () => {
+    const res = await app.inject({
+      method: 'DELETE',
+      url: '/api/tasks/not-a-valid-uuid',
+      headers: auth(),
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('VALIDATION_ERROR');
   });
 });
 

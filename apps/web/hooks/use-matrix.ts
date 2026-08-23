@@ -10,6 +10,7 @@ import type {
   Tag,
 } from '@offload/shared';
 import { apiClient } from '@/lib/api-client';
+import { addTagToTaskTags, removeTagFromTaskTags } from '@/lib/utils';
 
 export const QUADRANT_FLAGS: Record<
   QuadrantKey,
@@ -361,24 +362,16 @@ export function useMatrix(projectId?: string | null): UseMatrixReturn {
       const previousMatrix = matrixRef.current;
       setMatrix((prev) => ({
         urgent_important: prev.urgent_important.map((t) =>
-          t.id === taskId
-            ? { ...t, tags: [...(t.tags || []).filter((x) => x.id !== tag.id), tag] }
-            : t
+          t.id === taskId ? { ...t, tags: addTagToTaskTags(t.tags, tag) } : t
         ),
         not_urgent_important: prev.not_urgent_important.map((t) =>
-          t.id === taskId
-            ? { ...t, tags: [...(t.tags || []).filter((x) => x.id !== tag.id), tag] }
-            : t
+          t.id === taskId ? { ...t, tags: addTagToTaskTags(t.tags, tag) } : t
         ),
         urgent_not_important: prev.urgent_not_important.map((t) =>
-          t.id === taskId
-            ? { ...t, tags: [...(t.tags || []).filter((x) => x.id !== tag.id), tag] }
-            : t
+          t.id === taskId ? { ...t, tags: addTagToTaskTags(t.tags, tag) } : t
         ),
         not_urgent_not_important: prev.not_urgent_not_important.map((t) =>
-          t.id === taskId
-            ? { ...t, tags: [...(t.tags || []).filter((x) => x.id !== tag.id), tag] }
-            : t
+          t.id === taskId ? { ...t, tags: addTagToTaskTags(t.tags, tag) } : t
         ),
       }));
 
@@ -403,24 +396,16 @@ export function useMatrix(projectId?: string | null): UseMatrixReturn {
       const previousMatrix = matrixRef.current;
       setMatrix((prev) => ({
         urgent_important: prev.urgent_important.map((t) =>
-          t.id === taskId
-            ? { ...t, tags: (t.tags || []).filter((x) => x.id !== tagId) }
-            : t
+          t.id === taskId ? { ...t, tags: removeTagFromTaskTags(t.tags, tagId) } : t
         ),
         not_urgent_important: prev.not_urgent_important.map((t) =>
-          t.id === taskId
-            ? { ...t, tags: (t.tags || []).filter((x) => x.id !== tagId) }
-            : t
+          t.id === taskId ? { ...t, tags: removeTagFromTaskTags(t.tags, tagId) } : t
         ),
         urgent_not_important: prev.urgent_not_important.map((t) =>
-          t.id === taskId
-            ? { ...t, tags: (t.tags || []).filter((x) => x.id !== tagId) }
-            : t
+          t.id === taskId ? { ...t, tags: removeTagFromTaskTags(t.tags, tagId) } : t
         ),
         not_urgent_not_important: prev.not_urgent_not_important.map((t) =>
-          t.id === taskId
-            ? { ...t, tags: (t.tags || []).filter((x) => x.id !== tagId) }
-            : t
+          t.id === taskId ? { ...t, tags: removeTagFromTaskTags(t.tags, tagId) } : t
         ),
       }));
 

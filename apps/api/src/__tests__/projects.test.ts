@@ -76,6 +76,17 @@ describe('PATCH /api/projects/:id', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().name).toBe('New');
   });
+
+  it('returns 400 VALIDATION_ERROR on invalid UUID', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/api/projects/not-a-valid-uuid',
+      headers: auth(),
+      payload: { name: 'New' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('VALIDATION_ERROR');
+  });
 });
 
 describe('DELETE /api/projects/:id', () => {
@@ -92,6 +103,16 @@ describe('DELETE /api/projects/:id', () => {
       headers: auth(),
     });
     expect(res.statusCode).toBe(204);
+  });
+
+  it('returns 400 VALIDATION_ERROR on invalid UUID', async () => {
+    const res = await app.inject({
+      method: 'DELETE',
+      url: '/api/projects/not-a-valid-uuid',
+      headers: auth(),
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('VALIDATION_ERROR');
   });
 });
 
