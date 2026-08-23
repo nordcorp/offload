@@ -76,3 +76,20 @@ describe('reorder schema', () => {
     expect(() => reorderSchema.parse({ items: [] })).toThrow();
   });
 });
+
+describe('tag schemas', () => {
+  it('validates create tag input', () => {
+    const input = { name: 'Work', color: '#ef4444' };
+    expect(createTagSchema.parse(input)).toEqual(input);
+  });
+
+  it('rejects empty tag name', () => {
+    expect(() => createTagSchema.parse({ name: '', color: '#ef4444' })).toThrow();
+  });
+
+  it('rejects invalid hex color', () => {
+    expect(() => createTagSchema.parse({ name: 'Work', color: '#123' })).toThrow();
+    expect(() => createTagSchema.parse({ name: 'Work', color: 'blue' })).toThrow();
+  });
+});
+

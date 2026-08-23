@@ -1,4 +1,14 @@
+import withSerwistInit from '@serwist/next';
 import type { NextConfig } from 'next';
+import { ensureIconsExist } from './lib/generate-icons';
+
+ensureIconsExist();
+
+const withSerwist = withSerwistInit({
+  swSrc: 'app/sw.ts',
+  swDest: 'public/sw.js',
+  disable: process.env.NODE_ENV === 'development',
+});
 
 const nextConfig: NextConfig = {
   transpilePackages: ['@offload/shared'],
@@ -12,4 +22,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSerwist(nextConfig);

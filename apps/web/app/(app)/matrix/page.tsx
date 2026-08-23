@@ -22,9 +22,11 @@ export default function MatrixPage() {
     updateTask,
     deleteTask,
     toggleTask,
+    assignTag,
+    unassignTag,
   } = useMatrix(selectedProjectId);
 
-  const { tags, assignTag, unassignTag } = useTags();
+  const { tags } = useTags();
 
   // Combine all active tasks to find the selected task for the detail drawer
   const allTasks = useMemo(() => {
@@ -67,7 +69,7 @@ export default function MatrixPage() {
     if (isAssigned) {
       await unassignTag(taskId, tag.id);
     } else {
-      await assignTag(taskId, tag.id);
+      await assignTag(taskId, tag);
     }
   };
 

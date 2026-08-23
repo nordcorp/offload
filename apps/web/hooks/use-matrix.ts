@@ -7,6 +7,7 @@ import type {
   CreateTaskInput,
   UpdateTaskInput,
   QuadrantKey,
+  Tag,
 } from '@offload/shared';
 import { apiClient } from '@/lib/api-client';
 
@@ -44,6 +45,8 @@ export interface UseMatrixReturn {
   updateTask: (id: string, input: UpdateTaskInput) => Promise<Task>;
   deleteTask: (id: string) => Promise<void>;
   toggleTask: (id: string, completed?: boolean) => Promise<Task>;
+  assignTag: (taskId: string, tag: Tag) => Promise<void>;
+  unassignTag: (taskId: string, tagId: string) => Promise<void>;
 }
 
 export function useMatrix(projectId?: string | null): UseMatrixReturn {
@@ -352,6 +355,89 @@ export function useMatrix(projectId?: string | null): UseMatrixReturn {
     [updateTask]
   );
 
+  const assignTag = useCallback(
+    async (taskId: string, tag: Tag): Promise<void> => {
+      setError(null);
+      const previousMatrix = matrixRef.current;
+      setMatrix((prev) => ({
+        urgent_important: prev.urgent_important.map((t) =>
+          t.id === taskId
+            ? { ...t, tags: [...(t.tags || []).filter((x) => x.id !== tag.id), tag] }
+            : t
+        ),
+        not_urgent_important: prev.not_urgent_important.map((t) =>
+          t.id === taskId
+            ? { ...t, tags: [...(t.tags || []).filter((x) => x.id !== tag.id), tag] }
+            : t
+        ),
+        urgent_not_important: prev.urgent_not_important.map((t) =>
+          t.id === taskId
+            ? { ...t, tags: [...(t.tags || []).filter((x) => x.id !== tag.id), tag] }
+            : t
+        ),
+        not_urgent_not_important: prev.not_urgent_not_important.map((t) =>
+          t.id === taskId
+            ? { ...t, tags: [...(t.tags || []).filter((x) => x.id !== tag.id), tag] }
+            : t
+        ),
+      }));
+
+      try {
+        await apiClient<void>(`/api/tasks/${taskId}/tags`, {
+          method: 'POST',
+          body: JSON.stringify({ tagId: tag.id }),
+        });
+      } catch (err: unknown) {
+        setMatrix(previousMatrix);
+        const message = err instanceof Error ? err.message : 'Failed to assign tag';
+        setError(message);
+        throw err;
+      }
+    },
+    []
+  );
+
+  const unassignTag = useCallback(
+    async (taskId: string, tagId: string): Promise<void> => {
+      setError(null);
+      const previousMatrix = matrixRef.current;
+      setMatrix((prev) => ({
+        urgent_important: prev.urgent_important.map((t) =>
+          t.id === taskId
+            ? { ...t, tags: (t.tags || []).filter((x) => x.id !== tagId) }
+            : t
+        ),
+        not_urgent_important: prev.not_urgent_important.map((t) =>
+          t.id === taskId
+            ? { ...t, tags: (t.tags || []).filter((x) => x.id !== tagId) }
+            : t
+        ),
+        urgent_not_important: prev.urgent_not_important.map((t) =>
+          t.id === taskId
+            ? { ...t, tags: (t.tags || []).filter((x) => x.id !== tagId) }
+            : t
+        ),
+        not_urgent_not_important: prev.not_urgent_not_important.map((t) =>
+          t.id === taskId
+            ? { ...t, tags: (t.tags || []).filter((x) => x.id !== tagId) }
+            : t
+        ),
+      }));
+
+      try {
+        await apiClient<void>(`/api/tasks/${taskId}/tags/${tagId}`, {
+          method: 'DELETE',
+        });
+      } catch (err: unknown) {
+        setMatrix(previousMatrix);
+        const message = err instanceof Error ? err.message : 'Failed to unassign tag';
+        setError(message);
+        throw err;
+      }
+    },
+    []
+  );
+
   return {
     matrix,
     isLoading,
@@ -362,5 +448,7 @@ export function useMatrix(projectId?: string | null): UseMatrixReturn {
     updateTask,
     deleteTask,
     toggleTask,
+    assignTag,
+    unassignTag,
   };
 }
