@@ -133,35 +133,31 @@ export function generateAppIconPng(size: number): Buffer {
 
 export function ensureIconsExist(baseDir?: string) {
   try {
-    const candidates = [
-      baseDir ? path.resolve(baseDir, 'public') : null,
-      path.resolve(process.cwd(), 'public'),
-      path.resolve(process.cwd(), 'apps/web/public'),
-    ].filter((p): p is string => Boolean(p));
+    let targetPublicDir: string;
+    if (baseDir) {
+      targetPublicDir = path.resolve(baseDir, 'public');
+    } else if (fs.existsSync(path.resolve(process.cwd(), 'apps/web'))) {
+      targetPublicDir = path.resolve(process.cwd(), 'apps/web/public');
+    } else {
+      targetPublicDir = path.resolve(process.cwd(), 'public');
+    }
 
-    for (const publicDir of candidates) {
-      // If we are in monorepo root and checking 'public', skip if apps/web exists
-      if (publicDir.endsWith('/offload/public') && fs.existsSync(path.resolve(process.cwd(), 'apps/web'))) {
-        continue;
-      }
+    const iconsDir = path.resolve(targetPublicDir, 'icons');
+    if (!fs.existsSync(iconsDir)) {
+      fs.mkdirSync(iconsDir, { recursive: true });
+    }
 
-      const iconsDir = path.resolve(publicDir, 'icons');
-      if (!fs.existsSync(iconsDir)) {
-        fs.mkdirSync(iconsDir, { recursive: true });
-      }
+    const icon192Path = path.join(iconsDir, 'icon-192.png');
+    const icon512Path = path.join(iconsDir, 'icon-512.png');
 
-      const icon192Path = path.join(iconsDir, 'icon-192.png');
-      const icon512Path = path.join(iconsDir, 'icon-512.png');
+    if (!fs.existsSync(icon192Path)) {
+      const png192 = generateAppIconPng(192);
+      fs.writeFileSync(icon192Path, png192);
+    }
 
-      if (!fs.existsSync(icon192Path)) {
-        const png192 = generateAppIconPng(192);
-        fs.writeFileSync(icon192Path, png192);
-      }
-
-      if (!fs.existsSync(icon512Path)) {
-        const png512 = generateAppIconPng(512);
-        fs.writeFileSync(icon512Path, png512);
-      }
+    if (!fs.existsSync(icon512Path)) {
+      const png512 = generateAppIconPng(512);
+      fs.writeFileSync(icon512Path, png512);
     }
   } catch (err) {
     console.warn('Could not generate icons:', err);
