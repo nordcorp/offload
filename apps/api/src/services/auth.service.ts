@@ -33,12 +33,16 @@ export class AuthService {
   }
 
   async refresh(refreshToken: string) {
-    const stored = await this.prisma.refreshToken.findUnique({ where: { token: refreshToken } });
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { token: refreshToken },
+      include: { user: true },
+    });
     if (!stored || stored.expiresAt < new Date()) {
       throw Object.assign(new Error('Invalid refresh token'), { statusCode: 401 });
     }
     await this.prisma.refreshToken.delete({ where: { id: stored.id } });
-    return this.generateTokens(stored.userId);
+    const tokens = await this.generateTokens(stored.userId);
+    return { user: this.sanitizeUser(stored.user), ...tokens };
   }
 
   async logout(refreshToken: string) {

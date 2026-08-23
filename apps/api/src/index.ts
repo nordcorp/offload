@@ -28,6 +28,8 @@ export async function buildApp() {
   await app.register(prismaPlugin);
   await app.register(errorHandler);
 
+  app.get('/health', async () => ({ status: 'ok' }));
+
   const jwtSecret = new TextEncoder().encode(
     process.env.JWT_SECRET || 'dev-secret-at-least-32-characters-long!!'
   );

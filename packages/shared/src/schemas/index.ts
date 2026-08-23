@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
-export * from './auth';
-export * from './project';
-export * from './task';
-export * from './tag';
+export * from './auth.js';
+export * from './project.js';
+export * from './task.js';
+export * from './tag.js';
 
 export const reorderSchema = z.object({
   items: z.array(z.object({

@@ -1,11 +1,12 @@
 {
   "name": "offload",
   "private": true,
+  "packageManager": "pnpm@11.22.0",
   "scripts": {
-    "dev": "pnpm -r --parallel dev",
+    "dev": "pnpm --filter @offload/shared build && pnpm -r --parallel dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
-    "test": "pnpm -r test",
+    "test": "pnpm --filter @offload/shared build && pnpm -r test",
     "db:migrate": "pnpm --filter @offload/api prisma migrate dev",
     "db:generate": "pnpm --filter @offload/api prisma generate",
     "db:push": "pnpm --filter @offload/api prisma db push"

@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { User, LoginInput, RegisterInput } from '@offload/shared';
-import { apiClient, setAccessToken } from './api-client';
+import { apiClient, refreshSession, setAccessToken } from './api-client';
 
 interface AuthResponse {
   accessToken: string;
@@ -26,43 +26,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let isActive = true;
+
     async function checkAuth() {
       try {
-        const res = await fetch('/api/auth/refresh', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-        });
+        const session = await refreshSession();
+        if (!isActive) return;
 
-        if (res.ok) {
-          const data = (await res.json()) as { accessToken: string };
-          setAccessToken(data.accessToken);
-
-          const stored = localStorage.getItem(USER_STORAGE_KEY);
-          if (stored) {
-            try {
-              setUser(JSON.parse(stored) as User);
-            } catch {
-              localStorage.removeItem(USER_STORAGE_KEY);
-            }
-          }
-        } else {
-          setAccessToken(null);
-          localStorage.removeItem(USER_STORAGE_KEY);
-          setUser(null);
+        setUser(session?.user ?? null);
+        if (session) {
+          localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(session.user));
         }
       } catch {
-        setAccessToken(null);
-        localStorage.removeItem(USER_STORAGE_KEY);
+        if (!isActive) return;
         setUser(null);
       } finally {
-        setIsLoading(false);
+        if (isActive) setIsLoading(false);
       }
     }
 
-    checkAuth();
+    void checkAuth();
+
+    return () => {
+      isActive = false;
+    };
   }, []);
 
   const login = useCallback(async (input: LoginInput) => {

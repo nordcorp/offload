@@ -1,5 +1,13 @@
+import type { User } from '@offload/shared';
+
 let accessToken: string | null = null;
-let refreshPromise: Promise<string | null> | null = null;
+
+export interface RefreshSession {
+  accessToken: string;
+  user: User;
+}
+
+let refreshPromise: Promise<RefreshSession | null> | null = null;
 
 export class ApiErrorResponse extends Error {
   status: number;
@@ -23,13 +31,10 @@ export function setAccessToken(token: string | null): void {
   accessToken = token;
 }
 
-async function performRefresh(): Promise<string | null> {
+async function performRefresh(): Promise<RefreshSession | null> {
   try {
     const res = await fetch('/api/auth/refresh', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       credentials: 'include',
     });
 
@@ -41,9 +46,9 @@ async function performRefresh(): Promise<string | null> {
       return null;
     }
 
-    const data = (await res.json()) as { accessToken: string };
+    const data = (await res.json()) as RefreshSession;
     setAccessToken(data.accessToken);
-    return data.accessToken;
+    return data;
   } catch {
     setAccessToken(null);
     if (typeof window !== 'undefined') {
@@ -53,6 +58,14 @@ async function performRefresh(): Promise<string | null> {
   } finally {
     refreshPromise = null;
   }
+}
+
+export function refreshSession(): Promise<RefreshSession | null> {
+  if (!refreshPromise) {
+    refreshPromise = performRefresh();
+  }
+
+  return refreshPromise;
 }
 
 export async function apiClient<T = unknown>(
@@ -89,15 +102,11 @@ export async function apiClient<T = unknown>(
     url.includes('/api/auth/refresh');
 
   if (response.status === 401 && !isAuthPath) {
-    if (!refreshPromise) {
-      refreshPromise = performRefresh();
-    }
+    const session = await refreshSession();
 
-    const newToken = await refreshPromise;
-
-    if (newToken) {
+    if (session) {
       // Retry original request with new token
-      headers.set('Authorization', `Bearer ${newToken}`);
+      headers.set('Authorization', `Bearer ${session.accessToken}`);
       response = await fetch(url, {
         ...fetchOptions,
         headers,

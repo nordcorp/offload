@@ -28,9 +28,9 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post('/api/auth/refresh', async (request, reply) => {
     const token = request.cookies.refreshToken;
     if (!token) return reply.status(401).send({ error: 'No refresh token', code: 'UNAUTHORIZED' });
-    const { accessToken, refreshToken } = await fastify.authService.refresh(token);
+    const { user, accessToken, refreshToken } = await fastify.authService.refresh(token);
     reply.setCookie('refreshToken', refreshToken, COOKIE_OPTIONS);
-    return reply.status(200).send({ accessToken });
+    return reply.status(200).send({ accessToken, user });
   });
 
   fastify.post('/api/auth/logout', { preHandler: [authenticate] }, async (request, reply) => {

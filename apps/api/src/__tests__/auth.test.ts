@@ -97,7 +97,13 @@ describe('POST /api/auth/refresh', () => {
       cookies: { refreshToken: cookie!.value },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json().accessToken).toBeDefined();
+    const body = res.json();
+    expect(body.accessToken).toBeDefined();
+    expect(body.user).toEqual(expect.objectContaining({
+      email: 'ref@test.com',
+      name: 'Ref',
+    }));
+    expect(body.user).not.toHaveProperty('passwordHash');
   });
 });
 

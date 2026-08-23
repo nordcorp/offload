@@ -1,14 +1,120 @@
+name: offload
+
 services:
   postgres:
     image: postgres:17-alpine
-    ports:
-      - "5432:5432"
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: offload
-      POSTGRES_PASSWORD: offload
-      POSTGRES_DB: offload
+      POSTGRES_USER: ${POSTGRES_USER:-offload}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
+      POSTGRES_DB: ${POSTGRES_DB:-offload}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - backend
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      target: migrator
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env.production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      target: runner
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      START_SERVER: "true"
+      PORT: "3001"
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env.production}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.production}
+      COOKIE_SECRET: ${COOKIE_SECRET:?Set COOKIE_SECRET in .env.production}
+      CORS_ORIGIN: https://${APP_DOMAIN:?Set APP_DOMAIN in .env.production}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    expose:
+      - "3001"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - backend
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        NEXT_PUBLIC_API_URL: http://api:3001
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      NEXT_PUBLIC_API_URL: http://api:3001
+    depends_on:
+      api:
+        condition: service_healthy
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - backend
+      - frontend
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN in .env.production}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    networks:
+      - frontend
 
 volumes:
-  pgdata:
+  postgres_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  backend:
+    internal: true
+  frontend:

@@ -1,5 +1,6 @@
 import withSerwistInit from '@serwist/next';
 import type { NextConfig } from 'next';
+import path from 'node:path';
 import { ensureIconsExist } from './lib/generate-icons';
 
 ensureIconsExist();
@@ -11,6 +12,8 @@ const withSerwist = withSerwistInit({
 });
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
+  outputFileTracingRoot: path.join(process.cwd(), '../..'),
   transpilePackages: ['@offload/shared'],
   async rewrites() {
     return [
