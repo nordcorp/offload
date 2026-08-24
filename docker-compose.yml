@@ -47,6 +47,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env.production}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.production}
       COOKIE_SECRET: ${COOKIE_SECRET:?Set COOKIE_SECRET in .env.production}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
       CORS_ORIGIN: https://${APP_DOMAIN:?Set APP_DOMAIN in .env.production}
     depends_on:
       migrate:
