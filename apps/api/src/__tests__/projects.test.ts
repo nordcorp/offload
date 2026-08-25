@@ -37,6 +37,42 @@ describe('GET /api/projects', () => {
     expect(res.json()).toEqual([]);
   });
 
+  it('counts only active tasks', async () => {
+    const project = (
+      await app.inject({
+        method: 'POST',
+        url: '/api/projects',
+        headers: auth(),
+        payload: { name: 'Work', color: '#3b82f6' },
+      })
+    ).json();
+    await app.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      headers: auth(),
+      payload: { title: 'Active', projectId: project.id },
+    });
+    const completed = (
+      await app.inject({
+        method: 'POST',
+        url: '/api/tasks',
+        headers: auth(),
+        payload: { title: 'Completed', projectId: project.id },
+      })
+    ).json();
+    await app.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${completed.id}`,
+      headers: auth(),
+      payload: { completed: true },
+    });
+
+    const res = await app.inject({ method: 'GET', url: '/api/projects', headers: auth() });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()[0]._count.tasks).toBe(1);
+  });
+
   it('rejects unauthenticated', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/projects' });
     expect(res.statusCode).toBe(401);
