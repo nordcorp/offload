@@ -52,7 +52,7 @@ export interface UseMatrixReturn {
 }
 
 export function useMatrix(projectId?: string | null): UseMatrixReturn {
-  const { transitionTaskCount } = useProjects();
+  const { transitionActiveTaskCount } = useProjects();
   const [matrix, setMatrix] = useState<MatrixResponse>(EMPTY_MATRIX);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -191,7 +191,11 @@ export function useMatrix(projectId?: string | null): UseMatrixReturn {
         ...prev,
         [quadrant]: [...prev[quadrant], optimisticTask],
       }));
-      transitionTaskCount(null, optimisticTask.projectId);
+      const optimisticTaskState = {
+        projectId: optimisticTask.projectId,
+        completed: optimisticTask.completed,
+      };
+      transitionActiveTaskCount(null, optimisticTaskState);
 
       try {
         const createdTask = await apiClient<Task>('/api/tasks', {
@@ -203,17 +207,20 @@ export function useMatrix(projectId?: string | null): UseMatrixReturn {
           ...prev,
           [quadrant]: prev[quadrant].map((t) => (t.id === tempId ? createdTask : t)),
         }));
-        transitionTaskCount(optimisticTask.projectId, createdTask.projectId);
+        transitionActiveTaskCount(optimisticTaskState, {
+          projectId: createdTask.projectId,
+          completed: createdTask.completed,
+        });
         return createdTask;
       } catch (err: unknown) {
         setMatrix(previousMatrix);
-        transitionTaskCount(optimisticTask.projectId, null);
+        transitionActiveTaskCount(optimisticTaskState, null);
         const message = err instanceof Error ? err.message : 'Failed to create task';
         setError(message);
         throw err;
       }
     },
-    [projectId, transitionTaskCount]
+    [projectId, transitionActiveTaskCount]
   );
 
   const updateTask = useCallback(
@@ -252,6 +259,10 @@ export function useMatrix(projectId?: string | null): UseMatrixReturn {
       const targetQuadrant = getQuadrantKey(newUrgent, newImportant);
 
       const isCompleted = input.completed !== undefined ? input.completed : existingTask.completed;
+      const optimisticTaskState = {
+        projectId: optimisticProjectId,
+        completed: isCompleted,
+      };
 
       const updatedOptimistic: Task = {
         ...existingTask,
@@ -295,7 +306,10 @@ export function useMatrix(projectId?: string | null): UseMatrixReturn {
           ),
         };
       });
-      transitionTaskCount(existingTask.projectId, optimisticProjectId);
+      transitionActiveTaskCount(
+        { projectId: existingTask.projectId, completed: existingTask.completed },
+        optimisticTaskState
+      );
 
       try {
         const savedTask = await apiClient<Task>(`/api/tasks/${id}`, {
@@ -310,17 +324,23 @@ export function useMatrix(projectId?: string | null): UseMatrixReturn {
             [finalQuadrant]: prev[finalQuadrant].map((t) => (t.id === id ? savedTask : t)),
           }));
         }
-        transitionTaskCount(optimisticProjectId, savedTask.projectId);
+        transitionActiveTaskCount(optimisticTaskState, {
+          projectId: savedTask.projectId,
+          completed: savedTask.completed,
+        });
         return savedTask;
       } catch (err: unknown) {
         setMatrix(previousMatrix);
-        transitionTaskCount(optimisticProjectId, existingTask.projectId);
+        transitionActiveTaskCount(optimisticTaskState, {
+          projectId: existingTask.projectId,
+          completed: existingTask.completed,
+        });
         const message = err instanceof Error ? err.message : 'Failed to update task';
         setError(message);
         throw err;
       }
     },
-    [transitionTaskCount]
+    [transitionActiveTaskCount]
   );
 
   const deleteTask = useCallback(
@@ -338,7 +358,10 @@ export function useMatrix(projectId?: string | null): UseMatrixReturn {
         not_urgent_not_important: prev.not_urgent_not_important.filter((t) => t.id !== id),
       }));
       if (deletedTask) {
-        transitionTaskCount(deletedTask.projectId, null);
+        transitionActiveTaskCount(
+          { projectId: deletedTask.projectId, completed: deletedTask.completed },
+          null
+        );
       }
 
       try {
@@ -348,14 +371,17 @@ export function useMatrix(projectId?: string | null): UseMatrixReturn {
       } catch (err: unknown) {
         setMatrix(previousMatrix);
         if (deletedTask) {
-          transitionTaskCount(null, deletedTask.projectId);
+          transitionActiveTaskCount(null, {
+            projectId: deletedTask.projectId,
+            completed: deletedTask.completed,
+          });
         }
         const message = err instanceof Error ? err.message : 'Failed to delete task';
         setError(message);
         throw err;
       }
     },
-    [transitionTaskCount]
+    [transitionActiveTaskCount]
   );
 
   const toggleTask = useCallback(

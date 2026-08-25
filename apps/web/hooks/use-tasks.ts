@@ -21,7 +21,7 @@ export interface UseTasksReturn {
 }
 
 export function useTasks(projectId?: string | null): UseTasksReturn {
-  const { transitionTaskCount } = useProjects();
+  const { transitionActiveTaskCount } = useProjects();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -87,7 +87,11 @@ export function useTasks(projectId?: string | null): UseTasksReturn {
 
       // Optimistically append task
       setTasks((prev) => [...prev, optimisticTask]);
-      transitionTaskCount(null, optimisticTask.projectId);
+      const optimisticTaskState = {
+        projectId: optimisticTask.projectId,
+        completed: optimisticTask.completed,
+      };
+      transitionActiveTaskCount(null, optimisticTaskState);
 
       try {
         const createdTask = await apiClient<Task>('/api/tasks', {
@@ -99,18 +103,21 @@ export function useTasks(projectId?: string | null): UseTasksReturn {
         setTasks((prev) =>
           prev.map((t) => (t.id === tempId ? createdTask : t))
         );
-        transitionTaskCount(optimisticTask.projectId, createdTask.projectId);
+        transitionActiveTaskCount(optimisticTaskState, {
+          projectId: createdTask.projectId,
+          completed: createdTask.completed,
+        });
         return createdTask;
       } catch (err: unknown) {
         // Rollback optimistic task
         setTasks((prev) => prev.filter((t) => t.id !== tempId));
-        transitionTaskCount(optimisticTask.projectId, null);
+        transitionActiveTaskCount(optimisticTaskState, null);
         const message = err instanceof Error ? err.message : 'Failed to create task';
         setError(message);
         throw err;
       }
     },
-    [projectId, transitionTaskCount]
+    [projectId, transitionActiveTaskCount]
   );
 
   const updateTask = useCallback(
@@ -120,6 +127,8 @@ export function useTasks(projectId?: string | null): UseTasksReturn {
       const existingTask = previousTasks.find((task) => task.id === id);
       const optimisticProjectId =
         input.projectId !== undefined ? input.projectId : existingTask?.projectId;
+      const optimisticCompleted =
+        input.completed !== undefined ? input.completed : existingTask?.completed;
 
       // Optimistically update
       setTasks((prev) =>
@@ -146,7 +155,10 @@ export function useTasks(projectId?: string | null): UseTasksReturn {
         })
       );
       if (existingTask) {
-        transitionTaskCount(existingTask.projectId, optimisticProjectId);
+        transitionActiveTaskCount(
+          { projectId: existingTask.projectId, completed: existingTask.completed },
+          { projectId: optimisticProjectId, completed: optimisticCompleted ?? false }
+        );
       }
 
       try {
@@ -159,21 +171,27 @@ export function useTasks(projectId?: string | null): UseTasksReturn {
           prev.map((t) => (t.id === id ? updatedTask : t))
         );
         if (existingTask) {
-          transitionTaskCount(optimisticProjectId, updatedTask.projectId);
+          transitionActiveTaskCount(
+            { projectId: optimisticProjectId, completed: optimisticCompleted ?? false },
+            { projectId: updatedTask.projectId, completed: updatedTask.completed }
+          );
         }
         return updatedTask;
       } catch (err: unknown) {
         // Rollback on failure
         setTasks(previousTasks);
         if (existingTask) {
-          transitionTaskCount(optimisticProjectId, existingTask.projectId);
+          transitionActiveTaskCount(
+            { projectId: optimisticProjectId, completed: optimisticCompleted ?? false },
+            { projectId: existingTask.projectId, completed: existingTask.completed }
+          );
         }
         const message = err instanceof Error ? err.message : 'Failed to update task';
         setError(message);
         throw err;
       }
     },
-    [transitionTaskCount]
+    [transitionActiveTaskCount]
   );
 
   const deleteTask = useCallback(
@@ -185,7 +203,10 @@ export function useTasks(projectId?: string | null): UseTasksReturn {
       // Optimistically remove
       setTasks((prev) => prev.filter((t) => t.id !== id));
       if (deletedTask) {
-        transitionTaskCount(deletedTask.projectId, null);
+        transitionActiveTaskCount(
+          { projectId: deletedTask.projectId, completed: deletedTask.completed },
+          null
+        );
       }
 
       try {
@@ -196,14 +217,17 @@ export function useTasks(projectId?: string | null): UseTasksReturn {
         // Rollback on failure
         setTasks(previousTasks);
         if (deletedTask) {
-          transitionTaskCount(null, deletedTask.projectId);
+          transitionActiveTaskCount(null, {
+            projectId: deletedTask.projectId,
+            completed: deletedTask.completed,
+          });
         }
         const message = err instanceof Error ? err.message : 'Failed to delete task';
         setError(message);
         throw err;
       }
     },
-    [transitionTaskCount]
+    [transitionActiveTaskCount]
   );
 
   const toggleTask = useCallback(

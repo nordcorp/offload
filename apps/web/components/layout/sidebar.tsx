@@ -82,7 +82,7 @@ function SortableProjectItem({
     zIndex: isDragging ? 50 : undefined,
   };
 
-  const taskCount = project._count?.tasks ?? 0;
+  const activeTaskCount = project._count?.tasks ?? 0;
 
   return (
     <div
@@ -113,7 +113,7 @@ function SortableProjectItem({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {taskCount > 0 && (
+          {activeTaskCount > 0 && (
             <span
               className={cn(
                 'text-xs px-1.5 py-0.5 rounded-full',
@@ -122,7 +122,7 @@ function SortableProjectItem({
                   : 'bg-zinc-200/70 text-zinc-600 group-hover:bg-zinc-200'
               )}
             >
-              {taskCount}
+              {activeTaskCount}
             </span>
           )}
           <button

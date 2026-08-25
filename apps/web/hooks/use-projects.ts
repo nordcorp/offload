@@ -10,7 +10,12 @@ import {
   useRef,
   type ReactNode,
 } from 'react';
-import type { Project, CreateProjectInput } from '@offload/shared';
+import {
+  transitionActiveTaskCounts,
+  type Project,
+  type CreateProjectInput,
+  type TaskCountState,
+} from '@offload/shared';
 import { apiClient } from '@/lib/api-client';
 
 export interface UseProjectsReturn {
@@ -21,9 +26,9 @@ export interface UseProjectsReturn {
   createProject: (input: CreateProjectInput) => Promise<Project>;
   deleteProject: (id: string) => Promise<void>;
   reorderProjects: (projects: Project[]) => Promise<void>;
-  transitionTaskCount: (
-    fromProjectId: string | null | undefined,
-    toProjectId: string | null | undefined
+  transitionActiveTaskCount: (
+    from: TaskCountState | null,
+    to: TaskCountState | null
   ) => void;
 }
 
@@ -103,29 +108,9 @@ function useProjectsState(): UseProjectsReturn {
     []
   );
 
-  const transitionTaskCount = useCallback(
-    (
-      fromProjectId: string | null | undefined,
-      toProjectId: string | null | undefined
-    ): void => {
-      if (fromProjectId === toProjectId) return;
-
-      setProjects((prev) =>
-        prev.map((project) => {
-          const delta =
-            (project.id === toProjectId ? 1 : 0) -
-            (project.id === fromProjectId ? 1 : 0);
-
-          if (delta === 0) return project;
-
-          return {
-            ...project,
-            _count: {
-              tasks: Math.max(0, (project._count?.tasks ?? 0) + delta),
-            },
-          };
-        })
-      );
+  const transitionActiveTaskCount = useCallback(
+    (from: TaskCountState | null, to: TaskCountState | null): void => {
+      setProjects((prev) => transitionActiveTaskCounts(prev, from, to));
     },
     []
   );
@@ -138,7 +123,7 @@ function useProjectsState(): UseProjectsReturn {
     createProject,
     deleteProject,
     reorderProjects,
-    transitionTaskCount,
+    transitionActiveTaskCount,
   };
 }
 

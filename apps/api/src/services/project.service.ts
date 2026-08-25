@@ -8,7 +8,11 @@ export class ProjectService {
     return this.prisma.project.findMany({
       where: { userId },
       orderBy: { sortOrder: 'asc' },
-      include: { _count: { select: { tasks: true } } },
+      include: {
+        _count: {
+          select: { tasks: { where: { completed: false } } },
+        },
+      },
     });
   }
 
