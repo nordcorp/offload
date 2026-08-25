@@ -1,6 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  createContext,
+  createElement,
+  useState,
+  useEffect,
+  useCallback,
+  useContext,
+  useRef,
+  type ReactNode,
+} from 'react';
 import type { Project, CreateProjectInput } from '@offload/shared';
 import { apiClient } from '@/lib/api-client';
 
@@ -12,9 +21,15 @@ export interface UseProjectsReturn {
   createProject: (input: CreateProjectInput) => Promise<Project>;
   deleteProject: (id: string) => Promise<void>;
   reorderProjects: (projects: Project[]) => Promise<void>;
+  transitionTaskCount: (
+    fromProjectId: string | null | undefined,
+    toProjectId: string | null | undefined
+  ) => void;
 }
 
-export function useProjects(): UseProjectsReturn {
+const ProjectsContext = createContext<UseProjectsReturn | null>(null);
+
+function useProjectsState(): UseProjectsReturn {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +103,33 @@ export function useProjects(): UseProjectsReturn {
     []
   );
 
+  const transitionTaskCount = useCallback(
+    (
+      fromProjectId: string | null | undefined,
+      toProjectId: string | null | undefined
+    ): void => {
+      if (fromProjectId === toProjectId) return;
+
+      setProjects((prev) =>
+        prev.map((project) => {
+          const delta =
+            (project.id === toProjectId ? 1 : 0) -
+            (project.id === fromProjectId ? 1 : 0);
+
+          if (delta === 0) return project;
+
+          return {
+            ...project,
+            _count: {
+              tasks: Math.max(0, (project._count?.tasks ?? 0) + delta),
+            },
+          };
+        })
+      );
+    },
+    []
+  );
+
   return {
     projects,
     isLoading,
@@ -96,5 +138,22 @@ export function useProjects(): UseProjectsReturn {
     createProject,
     deleteProject,
     reorderProjects,
+    transitionTaskCount,
   };
+}
+
+export function ProjectsProvider({ children }: { children: ReactNode }) {
+  const value = useProjectsState();
+
+  return createElement(ProjectsContext.Provider, { value }, children);
+}
+
+export function useProjects(): UseProjectsReturn {
+  const context = useContext(ProjectsContext);
+
+  if (!context) {
+    throw new Error('useProjects must be used within a ProjectsProvider');
+  }
+
+  return context;
 }
