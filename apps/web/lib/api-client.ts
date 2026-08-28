@@ -7,7 +7,14 @@ export interface RefreshSession {
   user: User;
 }
 
+export type SessionEvent =
+  | { type: 'updated'; session: RefreshSession }
+  | { type: 'lost' };
+
+type SessionListener = (event: SessionEvent) => void;
+
 let refreshPromise: Promise<RefreshSession | null> | null = null;
+const sessionListeners = new Set<SessionListener>();
 
 export class ApiErrorResponse extends Error {
   status: number;
@@ -31,38 +38,72 @@ export function setAccessToken(token: string | null): void {
   accessToken = token;
 }
 
+export function subscribeSession(listener: SessionListener): () => void {
+  sessionListeners.add(listener);
+  return () => sessionListeners.delete(listener);
+}
+
+function publishSessionEvent(event: SessionEvent): void {
+  sessionListeners.forEach(listener => listener(event));
+}
+
+function loseSession(): void {
+  setAccessToken(null);
+  publishSessionEvent({ type: 'lost' });
+}
+
+async function readResponse(response: Response): Promise<unknown> {
+  const contentType = response.headers.get('content-type');
+  return contentType?.includes('application/json')
+    ? response.json()
+    : response.text();
+}
+
+async function toApiError(response: Response): Promise<ApiErrorResponse> {
+  const data = await readResponse(response);
+  const errorMessage = typeof data === 'object' && data !== null && 'error' in data
+    ? (data as { error: string }).error
+    : typeof data === 'string' && data.length > 0
+      ? data
+      : `Request failed with status ${response.status}`;
+
+  const errorCode = typeof data === 'object' && data !== null && 'code' in data
+    ? (data as { code?: string }).code
+    : undefined;
+
+  const errorDetails = typeof data === 'object' && data !== null && 'details' in data
+    ? (data as { details?: Record<string, unknown> }).details
+    : undefined;
+
+  return new ApiErrorResponse(response.status, errorMessage, errorCode, errorDetails);
+}
+
 async function performRefresh(): Promise<RefreshSession | null> {
-  try {
-    const res = await fetch('/api/auth/refresh', {
-      method: 'POST',
-      credentials: 'include',
-    });
+  const response = await fetch('/api/auth/refresh', {
+    method: 'POST',
+    credentials: 'include',
+  });
 
-    if (!res.ok) {
-      setAccessToken(null);
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('offload_user');
-      }
-      return null;
-    }
-
-    const data = (await res.json()) as RefreshSession;
-    setAccessToken(data.accessToken);
-    return data;
-  } catch {
-    setAccessToken(null);
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('offload_user');
-    }
+  if (response.status === 401 || response.status === 403) {
+    loseSession();
     return null;
-  } finally {
-    refreshPromise = null;
   }
+
+  if (!response.ok) {
+    throw await toApiError(response);
+  }
+
+  const session = (await response.json()) as RefreshSession;
+  setAccessToken(session.accessToken);
+  publishSessionEvent({ type: 'updated', session });
+  return session;
 }
 
 export function refreshSession(): Promise<RefreshSession | null> {
   if (!refreshPromise) {
-    refreshPromise = performRefresh();
+    refreshPromise = performRefresh().finally(() => {
+      refreshPromise = null;
+    });
   }
 
   return refreshPromise;
@@ -79,6 +120,17 @@ export async function apiClient<T = unknown>(
       : `/api/${path}`;
 
   const headers = new Headers(options.headers || {});
+
+  const isPublicAuthPath = url.includes('/api/auth/login') ||
+    url.includes('/api/auth/register') ||
+    url.includes('/api/auth/refresh');
+
+  if (!accessToken && !isPublicAuthPath) {
+    const session = await refreshSession();
+    if (!session) {
+      throw new ApiErrorResponse(401, 'Session expired', 'UNAUTHORIZED');
+    }
+  }
 
   if (!headers.has('Content-Type') && options.body && !(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
@@ -97,11 +149,7 @@ export async function apiClient<T = unknown>(
   let response = await fetch(url, fetchOptions);
 
   // Auto silent refresh on 401
-  const isAuthPath = url.includes('/api/auth/login') ||
-    url.includes('/api/auth/register') ||
-    url.includes('/api/auth/refresh');
-
-  if (response.status === 401 && !isAuthPath) {
+  if (response.status === 401 && !isPublicAuthPath) {
     const session = await refreshSession();
 
     if (session) {
@@ -111,6 +159,10 @@ export async function apiClient<T = unknown>(
         ...fetchOptions,
         headers,
       });
+
+      if (response.status === 401) {
+        loseSession();
+      }
     }
   }
 
@@ -118,27 +170,9 @@ export async function apiClient<T = unknown>(
     return undefined as unknown as T;
   }
 
-  const contentType = response.headers.get('content-type');
-  const isJson = contentType && contentType.includes('application/json');
-  const data = isJson ? await response.json() : await response.text();
-
   if (!response.ok) {
-    const errorMessage = typeof data === 'object' && data !== null && 'error' in data
-      ? (data as { error: string }).error
-      : typeof data === 'string' && data.length > 0
-        ? data
-        : `Request failed with status ${response.status}`;
-
-    const errorCode = typeof data === 'object' && data !== null && 'code' in data
-      ? (data as { code?: string }).code
-      : undefined;
-
-    const errorDetails = typeof data === 'object' && data !== null && 'details' in data
-      ? (data as { details?: Record<string, unknown> }).details
-      : undefined;
-
-    throw new ApiErrorResponse(response.status, errorMessage, errorCode, errorDetails);
+    throw await toApiError(response);
   }
 
-  return data as T;
+  return await readResponse(response) as T;
 }

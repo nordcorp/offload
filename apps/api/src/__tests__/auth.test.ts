@@ -107,6 +107,95 @@ describe('POST /api/auth/refresh', () => {
   });
 });
 
+describe('GET /api/auth/session', () => {
+  async function register(email: string) {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { email, password: 'password123', name: 'Session User' },
+    });
+
+    return {
+      accessToken: response.json().accessToken as string,
+      refreshToken: response.cookies.find(cookie => cookie.name === 'refreshToken')!.value,
+    };
+  }
+
+  function checkSession(accessToken: string, refreshToken?: string) {
+    return app.inject({
+      method: 'GET',
+      url: '/api/auth/session',
+      headers: { authorization: `Bearer ${accessToken}` },
+      cookies: refreshToken ? { refreshToken } : undefined,
+    });
+  }
+
+  it('returns 204 for a valid access and refresh token pair without rotating it', async () => {
+    const session = await register('session-valid@test.com');
+    const tokensBefore = await app.prisma.refreshToken.findMany();
+
+    const first = await checkSession(session.accessToken, session.refreshToken);
+    const second = await checkSession(session.accessToken, session.refreshToken);
+    const tokensAfter = await app.prisma.refreshToken.findMany();
+
+    expect(first.statusCode).toBe(204);
+    expect(second.statusCode).toBe(204);
+    expect(first.cookies).toEqual([]);
+    expect(tokensAfter).toEqual(tokensBefore);
+  });
+
+  it('returns 401 UNAUTHORIZED when the refresh cookie is missing', async () => {
+    const session = await register('session-missing@test.com');
+
+    const response = await checkSession(session.accessToken);
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json().code).toBe('UNAUTHORIZED');
+  });
+
+  it('returns 401 UNAUTHORIZED for an expired refresh token', async () => {
+    const session = await register('session-expired@test.com');
+    await app.prisma.refreshToken.update({
+      where: { token: session.refreshToken },
+      data: { expiresAt: new Date(Date.now() - 1_000) },
+    });
+
+    const response = await checkSession(session.accessToken, session.refreshToken);
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json().code).toBe('UNAUTHORIZED');
+  });
+
+  it('returns 401 UNAUTHORIZED for a deleted refresh token', async () => {
+    const session = await register('session-deleted@test.com');
+    await app.prisma.refreshToken.delete({ where: { token: session.refreshToken } });
+
+    const response = await checkSession(session.accessToken, session.refreshToken);
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json().code).toBe('UNAUTHORIZED');
+  });
+
+  it('returns 401 UNAUTHORIZED when the tokens belong to different users', async () => {
+    const first = await register('session-first@test.com');
+    const second = await register('session-second@test.com');
+
+    const response = await checkSession(first.accessToken, second.refreshToken);
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json().code).toBe('UNAUTHORIZED');
+  });
+
+  it('returns 401 UNAUTHORIZED for an invalid access token', async () => {
+    const session = await register('session-access@test.com');
+
+    const response = await checkSession('invalid-access-token', session.refreshToken);
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json().code).toBe('UNAUTHORIZED');
+  });
+});
+
 describe('POST /api/auth/logout', () => {
   it('clears refresh token', async () => {
     const reg = await app.inject({

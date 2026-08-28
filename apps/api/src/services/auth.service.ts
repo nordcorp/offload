@@ -49,6 +49,19 @@ export class AuthService {
     await this.prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
   }
 
+  async verifySession(refreshToken: string, userId: string): Promise<boolean> {
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { token: refreshToken },
+      select: { userId: true, expiresAt: true },
+    });
+
+    return Boolean(
+      stored &&
+      stored.userId === userId &&
+      stored.expiresAt >= new Date(),
+    );
+  }
+
   async generateTokens(userId: string) {
     const accessToken = await new SignJWT({ userId })
       .setProtectedHeader({ alg: 'HS256' })

@@ -35,6 +35,20 @@ export default async function authRoutes(fastify: FastifyInstance) {
     return reply.status(200).send({ accessToken, user });
   });
 
+  fastify.get('/api/auth/session', { preHandler: [authenticate] }, async (request, reply) => {
+    const token = request.cookies.refreshToken;
+    if (!token) {
+      return reply.status(401).send({ error: 'No refresh token', code: 'UNAUTHORIZED' });
+    }
+
+    const isValid = await fastify.authService.verifySession(token, request.userId);
+    if (!isValid) {
+      return reply.status(401).send({ error: 'Invalid session', code: 'UNAUTHORIZED' });
+    }
+
+    return reply.status(204).send();
+  });
+
   fastify.post('/api/auth/logout', { preHandler: [authenticate] }, async (request, reply) => {
     const token = request.cookies.refreshToken;
     if (token) await fastify.authService.logout(token);
