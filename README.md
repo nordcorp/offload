@@ -28,7 +28,7 @@ docker compose --env-file .env.production up -d --build
 
 ## Development and contributing
 
-Requirements: Node.js 20+, pnpm, and Docker.
+Requirements: Node.js 22.13+, pnpm, and Docker.
 
 ```bash
 pnpm install

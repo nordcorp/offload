@@ -12,6 +12,6 @@
     "db:push": "pnpm --filter @offload/api prisma db push"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.13"
   }
 }
