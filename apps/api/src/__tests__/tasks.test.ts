@@ -208,6 +208,25 @@ describe('DELETE /api/tasks/:id', () => {
 });
 
 describe('PATCH /api/tasks/reorder', () => {
+  it('rolls back earlier updates when a task does not exist', async () => {
+    const task = (await app.inject({
+      method: 'POST', url: '/api/tasks', headers: auth(),
+      payload: { title: 'Keep original order', projectId },
+    })).json();
+
+    const res = await app.inject({
+      method: 'PATCH', url: '/api/tasks/reorder', headers: auth(),
+      payload: { items: [
+        { id: task.id, sortOrder: 99 },
+        { id: '00000000-0000-4000-8000-000000000001', sortOrder: 0 },
+      ] },
+    });
+
+    expect(res.statusCode).toBe(404);
+    const saved = await app.prisma.task.findUniqueOrThrow({ where: { id: task.id } });
+    expect(saved.sortOrder).toBe(task.sortOrder);
+  });
+
   it('reorders tasks successfully', async () => {
     const t1 = (
       await app.inject({

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useTransition } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Trash2,
@@ -9,7 +9,6 @@ import {
   Flame,
   Star,
   Tag as TagIcon,
-  Calendar,
   CheckCircle2,
   Clock,
   AlertTriangle,
@@ -17,7 +16,6 @@ import {
 import type { Task, Tag, UpdateTaskInput, Priority } from '@offload/shared';
 import { PRIORITY_COLORS, QUADRANT_LABELS } from '@offload/shared';
 import { cn } from '@/lib/utils';
-import { useTags } from '@/hooks/use-tags';
 
 export interface TaskDetailProps {
   task: Task | null;
@@ -25,8 +23,8 @@ export interface TaskDetailProps {
   onClose: () => void;
   onUpdate?: (id: string, input: UpdateTaskInput) => Promise<Task | unknown> | void;
   onDelete?: (id: string) => Promise<void> | void;
-  availableTags?: Tag[];
-  onToggleTag?: (taskId: string, tag: Tag, isAssigned: boolean) => Promise<void> | void;
+  availableTags: Tag[];
+  onToggleTag: (taskId: string, tag: Tag, isAssigned: boolean) => Promise<void> | void;
   className?: string;
 }
 
@@ -60,18 +58,14 @@ export function TaskDetail({
   onClose,
   onUpdate,
   onDelete,
-  availableTags: propsAvailableTags,
+  availableTags: allTags,
   onToggleTag,
   className,
 }: TaskDetailProps) {
-  const { tags: fetchedTags, assignTag: hookAssignTag, unassignTag: hookUnassignTag } = useTags();
-  const allTags = propsAvailableTags || fetchedTags;
-
   const [title, setTitle] = useState(task?.title || '');
   const [description, setDescription] = useState(task?.description || '');
   const [isDeleting, setIsDeleting] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  const [, startTransition] = useTransition();
 
   // Sync state whenever active task changes
   useEffect(() => {
@@ -182,15 +176,7 @@ export function TaskDetail({
   // Tag toggle handler
   const handleTagClick = async (tag: Tag) => {
     const isAssigned = task.tags?.some((t) => t.id === tag.id) ?? false;
-    if (onToggleTag) {
-      await onToggleTag(task.id, tag, isAssigned);
-    } else {
-      if (isAssigned) {
-        await hookUnassignTag(task.id, tag.id);
-      } else {
-        await hookAssignTag(task.id, tag.id);
-      }
-    }
+    await onToggleTag(task.id, tag, isAssigned);
   };
 
   // Delete handler

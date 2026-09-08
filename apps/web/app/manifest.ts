@@ -1,9 +1,6 @@
 import type { MetadataRoute } from 'next';
-import { ensureIconsExist } from '@/lib/generate-icons';
 
 export default function manifest(): MetadataRoute.Manifest {
-  ensureIconsExist();
-
   return {
     name: 'Offload',
     short_name: 'Offload',

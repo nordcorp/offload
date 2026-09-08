@@ -11,10 +11,6 @@ export interface UseTagsReturn {
   refetch: () => Promise<void>;
   createTag: (input: CreateTagInput) => Promise<Tag>;
   deleteTag: (id: string) => Promise<void>;
-  assignTag: (taskId: string, tagId: string) => Promise<void>;
-  unassignTag: (taskId: string, tagId: string) => Promise<void>;
-  assignTagToTask: (taskId: string, tagId: string) => Promise<void>;
-  unassignTagFromTask: (taskId: string, tagId: string) => Promise<void>;
 }
 
 export function useTags(): UseTagsReturn {
@@ -75,39 +71,6 @@ export function useTags(): UseTagsReturn {
     [tags]
   );
 
-  const assignTag = useCallback(
-    async (taskId: string, tagId: string): Promise<void> => {
-      setError(null);
-      try {
-        await apiClient<void>(`/api/tasks/${taskId}/tags`, {
-          method: 'POST',
-          body: JSON.stringify({ tagId }),
-        });
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Failed to assign tag';
-        setError(message);
-        throw err;
-      }
-    },
-    []
-  );
-
-  const unassignTag = useCallback(
-    async (taskId: string, tagId: string): Promise<void> => {
-      setError(null);
-      try {
-        await apiClient<void>(`/api/tasks/${taskId}/tags/${tagId}`, {
-          method: 'DELETE',
-        });
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Failed to unassign tag';
-        setError(message);
-        throw err;
-      }
-    },
-    []
-  );
-
   return {
     tags,
     isLoading,
@@ -115,9 +78,5 @@ export function useTags(): UseTagsReturn {
     refetch: fetchTags,
     createTag,
     deleteTag,
-    assignTag,
-    unassignTag,
-    assignTagToTask: assignTag,
-    unassignTagFromTask: unassignTag,
   };
 }

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Folder, Loader2 } from 'lucide-react';
-import type { Tag, UpdateTaskInput } from '@offload/shared';
+import type { Tag } from '@offload/shared';
 import { useProjects } from '@/hooks/use-projects';
 import { useTasks } from '@/hooks/use-tasks';
 import { useTags } from '@/hooks/use-tags';

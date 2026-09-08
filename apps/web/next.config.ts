@@ -1,9 +1,6 @@
 import withSerwistInit from '@serwist/next';
 import type { NextConfig } from 'next';
 import path from 'node:path';
-import { ensureIconsExist } from './lib/generate-icons';
-
-ensureIconsExist();
 
 const withSerwist = withSerwistInit({
   swSrc: 'app/sw.ts',

@@ -8,3 +8,4 @@ apps/api/generated
 .next
 prisma/*.db
 *.tsbuildinfo
+apps/web/public/sw.js
