@@ -20,10 +20,7 @@ services:
       - backend
 
   migrate:
-    build:
-      context: .
-      dockerfile: Dockerfile.api
-      target: migrator
+    image: ghcr.io/nordcorp/offload-migrate:${IMAGE_TAG:-latest}
     environment:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env.production}
     depends_on:
@@ -34,10 +31,7 @@ services:
     restart: "no"
 
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile.api
-      target: runner
+    image: ghcr.io/nordcorp/offload-api:${IMAGE_TAG:-latest}
     restart: unless-stopped
     init: true
     environment:
@@ -64,11 +58,7 @@ services:
       - backend
 
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile.web
-      args:
-        NEXT_PUBLIC_API_URL: http://api:3001
+    image: ghcr.io/nordcorp/offload-web:${IMAGE_TAG:-latest}
     restart: unless-stopped
     init: true
     environment:
