@@ -1,19 +1,30 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { LayoutGrid, Filter } from 'lucide-react';
 import type { Tag, QuadrantKey } from '@offload/shared';
+import { useAuth } from '@/lib/auth-context';
 import { useMatrix } from '@/hooks/use-matrix';
 import { useProjects } from '@/hooks/use-projects';
 import { useTags } from '@/hooks/use-tags';
 import { EisenhowerMatrix } from '@/components/matrix';
 import { TaskDetail } from '@/components/tasks/task-detail';
+import {
+  getMatrixProjectStorageKey,
+  getStoredMatrixProjectId,
+  setStoredMatrixProjectId,
+} from '@/lib/matrix-storage';
 
 export default function MatrixPage() {
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const { user } = useAuth();
+  const storageKey = getMatrixProjectStorageKey(user?.id);
+
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => {
+    return getStoredMatrixProjectId(storageKey);
+  });
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
-  const { projects } = useProjects();
+  const { projects, isLoading: isProjectsLoading, error: projectsError } = useProjects();
   const {
     matrix,
     isLoading,
@@ -27,6 +38,26 @@ export default function MatrixPage() {
   } = useMatrix(selectedProjectId);
 
   const { tags } = useTags();
+
+  // Sync selection if active user / storage key changes
+  useEffect(() => {
+    const stored = getStoredMatrixProjectId(storageKey);
+    setSelectedProjectId(stored);
+  }, [storageKey]);
+
+  // Clean up selection if the selected project was deleted or does not exist
+  useEffect(() => {
+    if (isProjectsLoading || projectsError) return;
+    if (selectedProjectId && !projects.some((p) => p.id === selectedProjectId)) {
+      setSelectedProjectId(null);
+      setStoredMatrixProjectId(storageKey, null);
+    }
+  }, [isProjectsLoading, projectsError, projects, selectedProjectId, storageKey]);
+
+  const handleSelectProject = (projectId: string | null) => {
+    setSelectedProjectId(projectId);
+    setStoredMatrixProjectId(storageKey, projectId);
+  };
 
   // Combine all active tasks to find the selected task for the detail drawer
   const allTasks = useMemo(() => {
@@ -105,7 +136,7 @@ export default function MatrixPage() {
             <select
               aria-label="Filter matrix by project"
               value={selectedProjectId || ''}
-              onChange={(e) => setSelectedProjectId(e.target.value || null)}
+              onChange={(e) => handleSelectProject(e.target.value || null)}
               className="text-xs font-medium pl-8 pr-7 py-1.5 rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer appearance-none shadow-2xs"
             >
               <option value="">All Projects</option>
