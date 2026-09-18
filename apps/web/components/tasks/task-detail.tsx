@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import {
   X,
   Trash2,
@@ -12,10 +12,14 @@ import {
   CheckCircle2,
   Clock,
   AlertTriangle,
+  Folder,
+  Inbox,
+  ChevronDown,
 } from 'lucide-react';
-import type { Task, Tag, UpdateTaskInput, Priority } from '@offload/shared';
+import type { Task, Tag, Project, UpdateTaskInput, Priority } from '@offload/shared';
 import { PRIORITY_COLORS, QUADRANT_LABELS } from '@offload/shared';
 import { cn } from '@/lib/utils';
+import { ProjectsContext } from '@/hooks/use-projects';
 
 export interface TaskDetailProps {
   task: Task | null;
@@ -24,6 +28,7 @@ export interface TaskDetailProps {
   onUpdate?: (id: string, input: UpdateTaskInput) => Promise<Task | unknown> | void;
   onDelete?: (id: string) => Promise<void> | void;
   availableTags: Tag[];
+  availableProjects?: Project[];
   onToggleTag: (taskId: string, tag: Tag, isAssigned: boolean) => Promise<void> | void;
   className?: string;
 }
@@ -59,6 +64,7 @@ export function TaskDetail({
   onUpdate,
   onDelete,
   availableTags: allTags,
+  availableProjects,
   onToggleTag,
   className,
 }: TaskDetailProps) {
@@ -66,6 +72,35 @@ export function TaskDetail({
   const [description, setDescription] = useState(task?.description || '');
   const [isDeleting, setIsDeleting] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+
+  const projectsContext = useContext(ProjectsContext);
+  const projects = availableProjects ?? projectsContext?.projects ?? [];
+  const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
+  const projectMenuRef = useRef<HTMLDivElement>(null);
+
+  const currentProject = projects.find((p) => p.id === task?.projectId) || null;
+
+  useEffect(() => {
+    setIsProjectMenuOpen(false);
+  }, [task?.id]);
+
+  useEffect(() => {
+    if (!isProjectMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (projectMenuRef.current && !projectMenuRef.current.contains(e.target as Node)) {
+        setIsProjectMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isProjectMenuOpen]);
+
+  const handleProjectChange = (targetProjectId: string | null) => {
+    setIsProjectMenuOpen(false);
+    if (task && task.projectId !== targetProjectId) {
+      onUpdate?.(task.id, { projectId: targetProjectId });
+    }
+  };
 
   // Sync state whenever active task changes
   useEffect(() => {
@@ -325,6 +360,96 @@ export function TaskDetail({
               placeholder="Add details..."
               className="w-full text-sm text-zinc-800 bg-zinc-50/50 hover:bg-zinc-50/90 focus:bg-white border border-zinc-200 rounded-xl p-3 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-y min-h-[90px]"
             />
+          </div>
+
+          {/* Project Selector */}
+          <div className="space-y-1.5" ref={projectMenuRef}>
+            <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Folder className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Project</span>
+            </label>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsProjectMenuOpen(!isProjectMenuOpen)}
+                className={cn(
+                  'w-full flex items-center justify-between p-2.5 rounded-xl border text-xs font-medium transition-all cursor-pointer select-none',
+                  isProjectMenuOpen
+                    ? 'border-blue-500 ring-2 ring-blue-500/20 bg-white'
+                    : 'border-zinc-200 bg-white hover:bg-zinc-50/80 text-zinc-700'
+                )}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  {currentProject ? (
+                    <>
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: currentProject.color }}
+                      />
+                      <span className="truncate font-medium text-zinc-800">{currentProject.name}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Inbox className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span className="truncate font-medium text-zinc-800">Inbox</span>
+                    </>
+                  )}
+                </div>
+                <ChevronDown
+                  className={cn(
+                    'w-4 h-4 text-zinc-400 shrink-0 ml-2 transition-transform duration-150',
+                    isProjectMenuOpen && 'rotate-180'
+                  )}
+                />
+              </button>
+
+              {isProjectMenuOpen && (
+                <div className="absolute left-0 right-0 top-full mt-1.5 p-1 bg-white border border-zinc-200 rounded-xl shadow-lg space-y-0.5 z-30 max-h-56 overflow-y-auto">
+                  <button
+                    type="button"
+                    onClick={() => handleProjectChange(null)}
+                    className={cn(
+                      'w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer text-left',
+                      task.projectId === null
+                        ? 'bg-blue-50/70 text-blue-900 font-semibold'
+                        : 'text-zinc-600 hover:bg-zinc-50'
+                    )}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Inbox className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span className="truncate">Inbox</span>
+                    </div>
+                    {task.projectId === null && <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
+                  </button>
+
+                  {projects.map((proj) => {
+                    const isSelected = task.projectId === proj.id;
+                    return (
+                      <button
+                        key={proj.id}
+                        type="button"
+                        onClick={() => handleProjectChange(proj.id)}
+                        className={cn(
+                          'w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer text-left',
+                          isSelected
+                            ? 'bg-zinc-100 text-zinc-900 font-semibold'
+                            : 'text-zinc-600 hover:bg-zinc-50'
+                        )}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: proj.color }}
+                          />
+                          <span className="truncate">{proj.name}</span>
+                        </div>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-zinc-700 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Priority Selector */}

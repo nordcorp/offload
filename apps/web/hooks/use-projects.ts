@@ -32,7 +32,7 @@ export interface UseProjectsReturn {
   ) => void;
 }
 
-const ProjectsContext = createContext<UseProjectsReturn | null>(null);
+export const ProjectsContext = createContext<UseProjectsReturn | null>(null);
 
 function useProjectsState(): UseProjectsReturn {
   const [projects, setProjects] = useState<Project[]>([]);

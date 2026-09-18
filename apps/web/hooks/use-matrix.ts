@@ -283,8 +283,8 @@ export function useMatrix(projectId?: string | null): UseMatrixReturn {
       };
 
       setMatrix((prev) => {
-        // If completed, remove from matrix views (matrix endpoint only shows uncompleted tasks)
-        if (isCompleted) {
+        // If completed or moved out of filtered project, remove from matrix
+        if (isCompleted || (projectId && optimisticProjectId !== projectId)) {
           return {
             ...prev,
             [sourceQuadrant!]: prev[sourceQuadrant!].filter((t) => t.id !== id),
@@ -317,11 +317,19 @@ export function useMatrix(projectId?: string | null): UseMatrixReturn {
           body: JSON.stringify(input),
         });
 
-        if (!savedTask.completed) {
+        if (!savedTask.completed && (!projectId || savedTask.projectId === projectId)) {
           const finalQuadrant = getQuadrantKey(savedTask.urgent, savedTask.important);
           setMatrix((prev) => ({
             ...prev,
             [finalQuadrant]: prev[finalQuadrant].map((t) => (t.id === id ? savedTask : t)),
+          }));
+        } else {
+          setMatrix((prev) => ({
+            ...prev,
+            urgent_important: prev.urgent_important.filter((t) => t.id !== id),
+            not_urgent_important: prev.not_urgent_important.filter((t) => t.id !== id),
+            urgent_not_important: prev.urgent_not_important.filter((t) => t.id !== id),
+            not_urgent_not_important: prev.not_urgent_not_important.filter((t) => t.id !== id),
           }));
         }
         transitionActiveTaskCount(optimisticTaskState, {
@@ -340,7 +348,7 @@ export function useMatrix(projectId?: string | null): UseMatrixReturn {
         throw err;
       }
     },
-    [transitionActiveTaskCount]
+    [projectId, transitionActiveTaskCount]
   );
 
   const deleteTask = useCallback(

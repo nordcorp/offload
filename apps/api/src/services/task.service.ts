@@ -1,10 +1,30 @@
-import type { PrismaClient } from '@prisma/client';
-import type { CreateTaskInput, UpdateTaskInput, ReorderInput } from '@offload/shared';
+import type { PrismaClient, Task as DbTask, Tag as DbTag } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
+import type { CreateTaskInput, UpdateTaskInput, ReorderInput, Task as SharedTask } from '@offload/shared';
+
+class HttpError extends Error {
+  statusCode: number;
+  constructor(message: string, statusCode: number) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
 
 const taskInclude = { tags: { include: { tag: true } } } as const;
 
-function formatTask(task: any) {
-  return { ...task, tags: task.tags?.map((tt: any) => tt.tag) ?? [] };
+type DbTaskWithTags = DbTask & {
+  tags?: Array<{ tag: DbTag }>;
+};
+
+function formatTask(task: DbTaskWithTags): SharedTask {
+  const { tags, createdAt, completedAt, priority, ...rest } = task;
+  return {
+    ...rest,
+    createdAt: createdAt.toISOString(),
+    completedAt: completedAt ? completedAt.toISOString() : null,
+    priority: priority as 1 | 2 | 3 | 4,
+    tags: tags?.map((tt) => tt.tag) ?? [],
+  };
 }
 
 export class TaskService {
@@ -45,6 +65,14 @@ export class TaskService {
   }
 
   async create(userId: string, input: CreateTaskInput) {
+    if (input.projectId) {
+      const project = await this.prisma.project.findFirst({
+        where: { id: input.projectId, userId },
+      });
+      if (!project) {
+        throw new HttpError('Project not found', 404);
+      }
+    }
     const maxOrder = await this.prisma.task.aggregate({
       where: { userId, projectId: input.projectId ?? null },
       _max: { sortOrder: true },
@@ -66,9 +94,32 @@ export class TaskService {
   }
 
   async update(userId: string, id: string, input: UpdateTaskInput) {
-    const data: any = { ...input };
+    const data: Prisma.TaskUncheckedUpdateInput = { ...input };
     if (input.completed === true) data.completedAt = new Date();
     else if (input.completed === false) data.completedAt = null;
+
+    if (input.projectId !== undefined) {
+      const existing = await this.prisma.task.findUnique({
+        where: { id, userId },
+        select: { projectId: true },
+      });
+      if (existing && existing.projectId !== input.projectId) {
+        if (input.projectId !== null) {
+          const project = await this.prisma.project.findFirst({
+            where: { id: input.projectId, userId },
+          });
+          if (!project) {
+            throw new HttpError('Project not found', 404);
+          }
+        }
+        const maxOrder = await this.prisma.task.aggregate({
+          where: { userId, projectId: input.projectId },
+          _max: { sortOrder: true },
+        });
+        data.sortOrder = (maxOrder._max.sortOrder ?? -1) + 1;
+      }
+    }
+
     const task = await this.prisma.task.update({
       where: { id, userId },
       data,

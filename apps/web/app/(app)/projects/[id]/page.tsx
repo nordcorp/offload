@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Folder, Loader2 } from 'lucide-react';
-import type { Tag } from '@offload/shared';
+import type { Tag, UpdateTaskInput } from '@offload/shared';
 import { useProjects } from '@/hooks/use-projects';
 import { useTasks } from '@/hooks/use-tasks';
 import { useTags } from '@/hooks/use-tags';
@@ -54,6 +54,22 @@ export default function ProjectPage() {
     }
   };
 
+  const handleUpdateTask = async (id: string, input: UpdateTaskInput) => {
+    if (input.projectId !== undefined && input.projectId !== projectId) {
+      if (selectedTaskId === id) {
+        setSelectedTaskId(null);
+      }
+    }
+    return updateTask(id, input);
+  };
+
+  const handleMoveTask = async (taskId: string, targetProjectId: string | null) => {
+    if (selectedTaskId === taskId && targetProjectId !== projectId) {
+      setSelectedTaskId(null);
+    }
+    await updateTask(taskId, { projectId: targetProjectId });
+  };
+
   if (isProjectsLoading && !project) {
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 flex items-center justify-center min-h-[50vh]">
@@ -97,6 +113,7 @@ export default function ProjectPage() {
         onDeleteTask={handleDeleteTask}
         onSelectTask={(task) => setSelectedTaskId(task.id)}
         onReorderTasks={reorderTasks}
+        onMoveTask={handleMoveTask}
         emptyTitle="No tasks in this project"
         emptyDescription={`Tasks assigned to ${project?.name || 'this project'} will appear here. Add one below.`}
         inputPlaceholder={`Add a task to ${project?.name || 'project'}... Press Enter`}
@@ -106,7 +123,7 @@ export default function ProjectPage() {
         task={selectedTask}
         isOpen={!!selectedTask}
         onClose={() => setSelectedTaskId(null)}
-        onUpdate={updateTask}
+        onUpdate={handleUpdateTask}
         onDelete={handleDeleteTask}
         availableTags={tags}
         onToggleTag={handleToggleTag}

@@ -123,6 +123,7 @@ export function useTasks(projectId?: string | null): UseTasksReturn {
   const updateTask = useCallback(
     async (id: string, input: UpdateTaskInput): Promise<Task> => {
       setError(null);
+      const currentScopeProjectId = projectId ?? null;
       const previousTasks = tasksRef.current;
       const existingTask = previousTasks.find((task) => task.id === id);
       const optimisticProjectId =
@@ -130,9 +131,12 @@ export function useTasks(projectId?: string | null): UseTasksReturn {
       const optimisticCompleted =
         input.completed !== undefined ? input.completed : existingTask?.completed;
 
-      // Optimistically update
-      setTasks((prev) =>
-        prev.map((t) => {
+      // Optimistically update: if moved to another project / out of current scope, remove from list
+      setTasks((prev) => {
+        if (optimisticProjectId !== currentScopeProjectId) {
+          return prev.filter((t) => t.id !== id);
+        }
+        return prev.map((t) => {
           if (t.id !== id) return t;
           return {
             ...t,
@@ -152,8 +156,8 @@ export function useTasks(projectId?: string | null): UseTasksReturn {
                 ? (input.priority as 1 | 2 | 3 | 4)
                 : t.priority,
           };
-        })
-      );
+        });
+      });
       if (existingTask) {
         transitionActiveTaskCount(
           { projectId: existingTask.projectId, completed: existingTask.completed },
@@ -167,9 +171,12 @@ export function useTasks(projectId?: string | null): UseTasksReturn {
           body: JSON.stringify(input),
         });
 
-        setTasks((prev) =>
-          prev.map((t) => (t.id === id ? updatedTask : t))
-        );
+        setTasks((prev) => {
+          if ((updatedTask.projectId ?? null) !== currentScopeProjectId) {
+            return prev.filter((t) => t.id !== id);
+          }
+          return prev.map((t) => (t.id === id ? updatedTask : t));
+        });
         if (existingTask) {
           transitionActiveTaskCount(
             { projectId: optimisticProjectId, completed: optimisticCompleted ?? false },
@@ -191,7 +198,7 @@ export function useTasks(projectId?: string | null): UseTasksReturn {
         throw err;
       }
     },
-    [transitionActiveTaskCount]
+    [projectId, transitionActiveTaskCount]
   );
 
   const deleteTask = useCallback(

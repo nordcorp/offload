@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Inbox } from 'lucide-react';
-import type { Tag } from '@offload/shared';
+import type { Tag, UpdateTaskInput } from '@offload/shared';
 import { useTasks } from '@/hooks/use-tasks';
 import { useTags } from '@/hooks/use-tags';
 import { TaskList } from '@/components/tasks/task-list';
@@ -41,6 +41,22 @@ export default function InboxPage() {
     }
   };
 
+  const handleUpdateTask = async (id: string, input: UpdateTaskInput) => {
+    if (input.projectId !== undefined && input.projectId !== null) {
+      if (selectedTaskId === id) {
+        setSelectedTaskId(null);
+      }
+    }
+    return updateTask(id, input);
+  };
+
+  const handleMoveTask = async (taskId: string, targetProjectId: string | null) => {
+    if (selectedTaskId === taskId && targetProjectId !== null) {
+      setSelectedTaskId(null);
+    }
+    await updateTask(taskId, { projectId: targetProjectId });
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
       <div className="flex items-center justify-between gap-3 mb-6">
@@ -70,6 +86,7 @@ export default function InboxPage() {
         onDeleteTask={handleDeleteTask}
         onSelectTask={(task) => setSelectedTaskId(task.id)}
         onReorderTasks={reorderTasks}
+        onMoveTask={handleMoveTask}
         emptyTitle="Your inbox is clear"
         emptyDescription="Tasks without an assigned project will appear here. Type below to add one."
         inputPlaceholder="Add a task to inbox... Press Enter"
@@ -79,7 +96,7 @@ export default function InboxPage() {
         task={selectedTask}
         isOpen={!!selectedTask}
         onClose={() => setSelectedTaskId(null)}
-        onUpdate={updateTask}
+        onUpdate={handleUpdateTask}
         onDelete={handleDeleteTask}
         availableTags={tags}
         onToggleTag={handleToggleTag}

@@ -52,6 +52,30 @@ describe('transitionActiveTaskCounts', () => {
       state('project-b', true),
       [2, 1],
     ],
+    [
+      'moves an active task from inbox to a project',
+      state(null, false),
+      state('project-a', false),
+      [3, 1],
+    ],
+    [
+      'moves an active task from project to inbox',
+      state('project-a', false),
+      state(null, false),
+      [1, 1],
+    ],
+    [
+      'moves a completed task from inbox to project',
+      state(null, true),
+      state('project-a', true),
+      [2, 1],
+    ],
+    [
+      'moves a completed task from project to inbox',
+      state('project-a', true),
+      state(null, true),
+      [2, 1],
+    ],
   ] satisfies Array<[
     string,
     TaskCountState | null,

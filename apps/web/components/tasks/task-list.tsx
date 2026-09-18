@@ -17,11 +17,10 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import type { Task } from '@offload/shared';
+import type { Task, Project } from '@offload/shared';
 import { TaskItem } from './task-item';
 import { AddTaskInput } from './add-task-input';
 import { cn } from '@/lib/utils';
-
 export interface TaskListProps {
   tasks: Task[];
   onToggleTask?: (id: string, completed: boolean) => void;
@@ -30,6 +29,8 @@ export interface TaskListProps {
   onSelectTask?: (task: Task) => void;
   onReorderTasks?: (tasks: Task[]) => void | Promise<void>;
   onReorder?: (tasks: Task[]) => void | Promise<void>;
+  onMoveTask?: (taskId: string, targetProjectId: string | null) => void;
+  availableProjects?: Project[];
   isLoading?: boolean;
   emptyTitle?: string;
   emptyDescription?: string;
@@ -45,6 +46,8 @@ export function TaskList({
   onSelectTask,
   onReorderTasks,
   onReorder,
+  onMoveTask,
+  availableProjects,
   isLoading = false,
   emptyTitle = 'No tasks yet',
   emptyDescription = 'Add your first task below to get started.',
@@ -111,6 +114,8 @@ export function TaskList({
                   onToggle={onToggleTask}
                   onDelete={onDeleteTask}
                   onClick={onSelectTask}
+                  onMoveToProject={onMoveTask}
+                  availableProjects={availableProjects}
                 />
               ))}
             </div>
@@ -144,6 +149,8 @@ export function TaskList({
                   onToggle={onToggleTask}
                   onDelete={onDeleteTask}
                   onClick={onSelectTask}
+                  onMoveToProject={onMoveTask}
+                  availableProjects={availableProjects}
                   isDragDisabled
                 />
               ))}

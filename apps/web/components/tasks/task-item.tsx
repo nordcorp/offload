@@ -1,18 +1,21 @@
 'use client';
 
-import React from 'react';
-import { Check, Trash2, GripVertical } from 'lucide-react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
+import { Check, Trash2, GripVertical, FolderInput, Inbox } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { Task } from '@offload/shared';
+import type { Task, Project } from '@offload/shared';
 import { PRIORITY_COLORS } from '@offload/shared';
 import { cn } from '@/lib/utils';
+import { ProjectsContext } from '@/hooks/use-projects';
 
 export interface TaskItemProps {
   task: Task;
   onToggle?: (id: string, completed: boolean) => void;
   onClick?: (task: Task) => void;
   onDelete?: (id: string) => void;
+  onMoveToProject?: (taskId: string, targetProjectId: string | null) => void;
+  availableProjects?: Project[];
   className?: string;
   isDragDisabled?: boolean;
 }
@@ -22,6 +25,8 @@ export function TaskItem({
   onToggle,
   onClick,
   onDelete,
+  onMoveToProject,
+  availableProjects,
   className,
   isDragDisabled = false,
 }: TaskItemProps) {
@@ -54,6 +59,33 @@ export function TaskItem({
     e.stopPropagation();
     onDelete?.(task.id);
   };
+  const projectsContext = useContext(ProjectsContext);
+  const projects = availableProjects ?? projectsContext?.projects ?? [];
+  const [isMoveMenuOpen, setIsMoveMenuOpen] = useState(false);
+  const moveMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isMoveMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (moveMenuRef.current && !moveMenuRef.current.contains(e.target as Node)) {
+        setIsMoveMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isMoveMenuOpen]);
+
+  const handleToggleMoveMenu = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsMoveMenuOpen((prev) => !prev);
+  };
+
+  const handleMoveSelect = (e: React.MouseEvent, targetProjectId: string | null) => {
+    e.stopPropagation();
+    setIsMoveMenuOpen(false);
+    onMoveToProject?.(task.id, targetProjectId);
+  };
+
 
   return (
     <div
@@ -141,6 +173,71 @@ export function TaskItem({
                 {tag.name}
               </span>
             ))}
+          </div>
+        )}
+
+        {/* Move to Project Button */}
+        {onMoveToProject && (
+          <div className="relative" ref={moveMenuRef}>
+            <button
+              type="button"
+              onClick={handleToggleMoveMenu}
+              aria-label="Move task to project"
+              title="Move to project"
+              className={cn(
+                'p-1 rounded-md text-zinc-400 hover:text-blue-600 hover:bg-zinc-100 transition-all cursor-pointer',
+                isMoveMenuOpen
+                  ? 'opacity-100 text-blue-600 bg-zinc-100'
+                  : 'opacity-0 group-hover:opacity-100'
+              )}
+            >
+              <FolderInput className="w-4 h-4" />
+            </button>
+
+            {isMoveMenuOpen && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="absolute right-0 top-full mt-1.5 w-48 bg-white border border-zinc-200 rounded-xl shadow-lg p-1 z-50 text-left space-y-0.5"
+              >
+                <div className="px-2.5 py-1 text-[10px] font-semibold uppercase text-zinc-400 tracking-wider">
+                  Move to
+                </div>
+
+                {task.projectId !== null && (
+                  <button
+                    type="button"
+                    onClick={(e) => handleMoveSelect(e, null)}
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-700 hover:bg-zinc-50 transition-colors cursor-pointer text-left"
+                  >
+                    <Inbox className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <span className="truncate">Inbox</span>
+                  </button>
+                )}
+
+                {projects
+                  .filter((p) => p.id !== task.projectId)
+                  .map((proj) => (
+                    <button
+                      key={proj.id}
+                      type="button"
+                      onClick={(e) => handleMoveSelect(e, proj.id)}
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-700 hover:bg-zinc-50 transition-colors cursor-pointer text-left"
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: proj.color }}
+                      />
+                      <span className="truncate">{proj.name}</span>
+                    </button>
+                  ))}
+
+                {task.projectId === null && projects.length === 0 && (
+                  <div className="px-2.5 py-2 text-xs text-zinc-400 italic">
+                    No projects yet
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

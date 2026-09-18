@@ -137,6 +137,62 @@ describe('PATCH /api/tasks/:id', () => {
     expect(res.statusCode).toBe(400);
     expect(res.json().code).toBe('VALIDATION_ERROR');
   });
+
+  it('moves task from inbox to a project and assigns sortOrder', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      headers: auth(),
+      payload: { title: 'Inbox Task' },
+    });
+    expect(created.json().projectId).toBeNull();
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${created.json().id}`,
+      headers: auth(),
+      payload: { projectId },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().projectId).toBe(projectId);
+    expect(res.json().sortOrder).toBeGreaterThanOrEqual(0);
+  });
+
+  it('moves task from project back to inbox', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      headers: auth(),
+      payload: { title: 'Project Task', projectId },
+    });
+    expect(created.json().projectId).toBe(projectId);
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${created.json().id}`,
+      headers: auth(),
+      payload: { projectId: null },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().projectId).toBeNull();
+  });
+
+  it('returns 404 when moving task to non-existent project', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      headers: auth(),
+      payload: { title: 'Some Task' },
+    });
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${created.json().id}`,
+      headers: auth(),
+      payload: { projectId: '00000000-0000-0000-0000-000000000000' },
+    });
+    expect(res.statusCode).toBe(404);
+  });
 });
 
 describe('GET /api/tasks/matrix', () => {
