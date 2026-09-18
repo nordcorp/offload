@@ -36,6 +36,7 @@ export interface TaskListProps {
   emptyDescription?: string;
   inputPlaceholder?: string;
   className?: string;
+  isDragDisabled?: boolean;
 }
 
 export function TaskList({
@@ -53,6 +54,7 @@ export function TaskList({
   emptyDescription = 'Add your first task below to get started.',
   inputPlaceholder = 'Add a task... Press Enter to save',
   className,
+  isDragDisabled = false,
 }: TaskListProps) {
   const activeTasks = tasks.filter((t) => !t.completed);
   const completedTasks = tasks.filter((t) => t.completed);
@@ -69,6 +71,10 @@ export function TaskList({
   );
 
   const handleDragEnd = (event: DragEndEvent) => {
+    if (isDragDisabled) {
+      return;
+    }
+
     const { active, over } = event;
     if (!over || active.id === over.id) {
       return;
@@ -116,6 +122,7 @@ export function TaskList({
                   onClick={onSelectTask}
                   onMoveToProject={onMoveTask}
                   availableProjects={availableProjects}
+                  isDragDisabled={isDragDisabled}
                 />
               ))}
             </div>
