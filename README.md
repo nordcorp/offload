@@ -1,28 +1,72 @@
 # Offload
 
-Offload is a self-hosted task manager for capturing work in an inbox, organizing it into projects and tags, and prioritizing it with an Eisenhower matrix. It is a pnpm monorepo with a Next.js PWA, a Fastify API, Prisma, and PostgreSQL.
+A fast, self-hosted task manager built around the **Eisenhower Matrix**. Capture ideas in your Inbox, organize tasks into Projects with Tags, and prioritize what matters.
 
-## Production
+Built with **Next.js 15 (PWA)**, **Fastify**, **Prisma**, **PostgreSQL**, and **Caddy** (automatic HTTPS).
 
-Requirements: Docker with Compose, a Linux server with ports 80 and 443 open, and a domain whose DNS points to that server. Caddy provisions and renews HTTPS certificates automatically.
+---
 
+## Features
+
+- 📥 **Inbox & Projects** — quick task capture, custom projects, and color-coded tags.
+- 🎯 **Eisenhower Matrix** — 4-quadrant prioritization (*Do First, Schedule, Delegate, Eliminate*) with drag-and-drop.
+- ⚡ **Priority & Date Sorting** — sort tasks by priority (P1–P4) or date added.
+- 📱 **Progressive Web App (PWA)** — install on desktop or mobile with offline capabilities.
+- 🔒 **Self-Hosted & Secure** — automatic SSL/TLS via Caddy, JWT + HTTP-only cookie sessions, isolated internal Docker network.
+
+---
+
+## Quick Start (Production)
+
+### Prerequisites
+- Linux server with **Docker** & **Docker Compose**
+- A domain name pointing to your server IP (ports 80 and 443 open)
+
+### 1. Clone repository
+```bash
+git clone https://github.com/nordcorp/offload.git
+cd offload
+```
+
+### 2. Configure environment
 ```bash
 cp .env.production.example .env.production
 ```
 
-Edit `.env.production`: set `APP_DOMAIN`, use a strong database password in both `POSTGRES_PASSWORD` and `DATABASE_URL`, and generate independent secrets (for example with `openssl rand -base64 48`) for `JWT_SECRET` and `COOKIE_SECRET`. Set `IMAGE_TAG` to a release tag (for example `v1.0.0`) to pin all application images, or keep `latest`. Then start the complete stack:
+Edit `.env.production` and set your domain and secrets:
+```ini
+APP_DOMAIN=tasks.yourdomain.com
+IMAGE_TAG=latest
 
-```bash
-docker compose --env-file .env.production pull
-docker compose --env-file .env.production up -d
-docker compose --env-file .env.production ps
+POSTGRES_USER=offload
+POSTGRES_PASSWORD=generate-a-strong-password
+POSTGRES_DB=offload
+DATABASE_URL=postgresql://offload:generate-a-strong-password@postgres:5432/offload
+
+JWT_SECRET=generate-at-least-32-random-characters
+COOKIE_SECRET=generate-at-least-32-random-characters
+COOKIE_SECURE=true
 ```
 
-Database migrations run automatically before the API starts. The application is available at `https://<APP_DOMAIN>`. PostgreSQL and the API are only reachable inside the Docker network; persistent data is stored in named Docker volumes.
+> **Tip:** Generate random secrets with:
+> ```bash
+> openssl rand -base64 32
+> ```
 
-CI publishes `ghcr.io/nordcorp/offload-api`, `ghcr.io/nordcorp/offload-web`, and `ghcr.io/nordcorp/offload-migrate` when a `v*` tag is pushed and tests and the production build pass.
+### 3. Start application
+```bash
+docker compose --env-file .env.production up -d
+```
 
-To update an installation:
+Database migrations run automatically before the API starts. Caddy provisions and renews SSL certificates automatically.
+
+Open `https://tasks.yourdomain.com` in your browser.
+
+---
+
+## Updating
+
+To update to the latest release:
 
 ```bash
 git pull
@@ -30,25 +74,74 @@ docker compose --env-file .env.production pull
 docker compose --env-file .env.production up -d
 ```
 
-## Development and contributing
+---
 
-Requirements: Node.js 22.13+, pnpm, and Docker.
+## Local Testing (without domain)
+
+To run a quick instance locally on `http://localhost`:
+
+1. Copy config:
+   ```bash
+   cp .env.production.example .env.production
+   ```
+2. Set in `.env.production`:
+   ```ini
+   APP_DOMAIN=localhost
+   CORS_ORIGIN=http://localhost
+   COOKIE_SECURE=false
+   ```
+3. Start stack:
+   ```bash
+   docker compose --env-file .env.production up -d
+   ```
+4. Open `http://localhost` in your browser.
+
+---
+
+## Useful Commands
 
 ```bash
+# View live logs
+docker compose --env-file .env.production logs -f
+
+# Check container status
+docker compose --env-file .env.production ps
+
+# Stop all services
+docker compose --env-file .env.production down
+
+# Backup database
+docker compose --env-file .env.production exec -T postgres pg_dump -U offload offload > backup.sql
+```
+
+---
+
+## Development
+
+Requirements: **Node.js 22.13+**, **pnpm**, and **Docker**.
+
+```bash
+# 1. Install dependencies
 pnpm install
+
+# 2. Configure API environment
 cp .env.example apps/api/.env
+
+# 3. Start development PostgreSQL
 docker compose -f docker-compose.dev.yml up -d
+
+# 4. Run database migrations
 pnpm db:migrate
+
+# 5. Start dev servers
 pnpm dev
 ```
 
-The web app runs at `http://localhost:3000`; the API runs at `http://localhost:3001`. Before opening a pull request, run:
+- Web app: `http://localhost:3000`
+- API server: `http://localhost:3001`
 
+### Running tests
 ```bash
 pnpm test
 pnpm build
 ```
-
-API tests clear application tables in the configured database. Always point `apps/api/.env` at a disposable test database before running `pnpm test`.
-
-Keep changes focused, add or update tests for behavior changes, and describe any database migration or configuration change in the pull request.
